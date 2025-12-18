@@ -194,11 +194,12 @@ lik_z <- exp(loglik_z)
 
 # LOOCV estimators
 
-# ---- Gelfand ----
+# Gelfand ----
+
 mu_g <- sapply(1:n, function(i) 1/mean(1/lik_g[,i]))
 elpd_g <- sum(log(mu_g))
 
-# ---- Zanella (self-normalized mixture) ----
+# Zanella (self-normalized mixture) ----
 
 mu_z <- numeric(n)
 num_z <- den_z <- matrix(NA, S, n)
