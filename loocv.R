@@ -64,14 +64,11 @@ run_mcmc <- function(x, y, sigma2, tau2, n_iter = 10000,
 ############################################################
 
 mcmc <- run_mcmc(x, y, sigma2, tau2, n_iter = 1e5)
-
 beta0 <- mcmc[,1]
 beta1 <- mcmc[,2]
 S <- nrow(mcmc)
 
-############################################################
 # 5. Gelfand LOOCV
-############################################################
 
 loocv <- numeric(n)
 num <- matrix(1, nrow = S, ncol = n)
