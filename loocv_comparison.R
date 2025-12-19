@@ -86,11 +86,10 @@ grad_log_q_mix <- function(theta){
   grad_ll + grad_lse - theta/tau2
 }
 
-# HMC sampler (copied from HMC for dummies)
-
 U_mix <- function(theta) -log_q_mix(theta)
 grad_U_mix <- function(theta) -grad_log_q_mix(theta)
 
+# HMC sampler (copied from HMC for dummies)
 
 leapfrog_hmc <- function(epsilon, L, niters, U, grad, x_init, M) {
   d <- length(x_init)
@@ -132,50 +131,54 @@ leapfrog_hmc <- function(epsilon, L, niters, U, grad, x_init, M) {
 
 # Sampling
 
-S <- 1e4
+S <- 5e3
 
-############################################################
-# Gelfand sampler via HMC (replacement)
-############################################################
+# Gelfand sampler via HMC 
+
 
 hmc_gelfand <- leapfrog_hmc(
-  epsilon = 0.01,
-  L = 10,
+  epsilon = 0.25,
+  L = 20,
   niters = S,
   U = U_post,
   grad = grad_U_post,
   x_init = c(1, 2),
   M = diag(2)
-)$samples
+)
+
+acc_gelfand <- hmc_gelfand$acc
+acc_gelfand
+
+theta_g <- hmc_gelfand$samples
 
 
-# Gelfand (RW–MH)
-hmc_gelfand <- function(S){
-  theta <- matrix(NA, S, 2)
-  cur <- c(1,2)
-  lp <- log_posterior(cur)
-  
-  for(s in 1:S){
-    prop <- cur + rnorm(2, 0, 0.1)
-    lp_prop <- log_posterior(prop)
-    if(log(runif(1)) < lp_prop - lp){
-      cur <- prop; lp <- lp_prop
-    }
-    theta[s,] <- cur
-  }
-  theta
-}
+# # Gelfand (RW–MH)
+# mh_gelfand <- function(S){
+#   theta <- matrix(NA, S, 2)
+#   cur <- c(1,2)
+#   lp <- log_posterior(cur)
+#   
+#   for(s in 1:S){
+#     prop <- cur + rnorm(2, 0, 0.1)
+#     lp_prop <- log_posterior(prop)
+#     if(log(runif(1)) < lp_prop - lp){
+#       cur <- prop; lp <- lp_prop
+#     }
+#     theta[s,] <- cur
+#   }
+#   theta
+# }
 
-theta_g <- hmc_gelfand(S)
 
 # Zanella (HMC on q_mix)
 hmc_zanella <- leapfrog_hmc(
-  epsilon = 0.01, L = 10, niters = S,
+  epsilon = 0.24, L = 20, niters = S,
   U = U_mix, grad = grad_U_mix,
   x_init = c(1,2), M = diag(2)
 )
 
-print(hmc_zanella$acc)
+acc_zanella <- hmc_zanella$acc
+acc_zanella
 theta_z <- hmc_zanella$samples
 
 
@@ -237,8 +240,7 @@ cat("\nGelfand ELPD:", elpd_g, " SE:", se_g, "\n")
 cat("Zanella ELPD:", elpd_z, " SE:", se_z, "\n")
 
 
-reps <- 1000
-S_rep <- 1000
+reps <- 1e2
 
 elpd_rep_g <- numeric(reps)
 elpd_rep_z <- numeric(reps)
@@ -249,10 +251,18 @@ for (r in 1:reps) {
   
   # Gelfand
   
-  theta_g <- hmc_gelfand(S = S_rep)
+  theta_g <- leapfrog_hmc(
+    epsilon = 0.25,
+    L = 20,
+    niters = S,
+    U = U_post,
+    grad = grad_U_post,
+    x_init = c(1, 2),
+    M = diag(2)
+  )$samples
   
-  lik_g <- matrix(NA, S_rep, n)
-  for (s in 1:S_rep) {
+  lik_g <- matrix(NA, S, n)
+  for (s in 1:S) {
     lik_g[s, ] <- exp(log_like(theta_g[s, ]))
   }
   
@@ -268,13 +278,13 @@ for (r in 1:reps) {
  
   
   theta_z <- leapfrog_hmc(
-    epsilon = 0.01, L = 10, niters = S_rep,
+    epsilon = 0.24, L = 20, niters = S,
     U = U_mix, grad = grad_U_mix,
-    x_init = c(1, 2), M = diag(2)
+    x_init = c(1,2), M = diag(2)
   )$samples
   
-  lik_z <- matrix(NA, S_rep, n)
-  for (s in 1:S_rep) {
+  lik_z <- matrix(NA, S, n)
+  for (s in 1:S) {
     lik_z[s, ] <- exp(log_like(theta_z[s, ]))
   }
   
