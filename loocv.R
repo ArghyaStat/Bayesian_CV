@@ -63,7 +63,7 @@ run_mcmc <- function(x, y, sigma2, tau2, n_iter = 10000,
 # 4. Run MCMC
 ############################################################
 
-mcmc <- run_mcmc(x, y, sigma2, tau2, n_iter = 1e5)
+mcmc <- run_mcmc(x, y, sigma2, tau2, n_iter = 1e4)
 beta0 <- mcmc[,1]
 beta1 <- mcmc[,2]
 S <- nrow(mcmc)

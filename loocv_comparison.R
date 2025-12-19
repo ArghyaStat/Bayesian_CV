@@ -26,10 +26,7 @@ log_posterior <- function(theta){
   log_prior(theta) + sum(log_like(theta))
 }
 
-
-############################################################
-# Posterior potential and gradient (Gelfand)
-############################################################
+# potential and gradient (Gelfand)
 
 log_post <- function(theta){
   beta0 <- theta[1]
@@ -89,7 +86,7 @@ grad_log_q_mix <- function(theta){
 U_mix <- function(theta) -log_q_mix(theta)
 grad_U_mix <- function(theta) -grad_log_q_mix(theta)
 
-# HMC sampler (copied from HMC for dummies)
+# HMC sampler (copied from our paper on HMC for dummies)
 
 leapfrog_hmc <- function(epsilon, L, niters, U, grad, x_init, M) {
   d <- length(x_init)
@@ -129,12 +126,9 @@ leapfrog_hmc <- function(epsilon, L, niters, U, grad, x_init, M) {
 }
 
 
-# Sampling
-
-S <- 5e3
-
 # Gelfand sampler via HMC 
 
+S <- 5e3
 
 hmc_gelfand <- leapfrog_hmc(
   epsilon = 0.25,
@@ -150,24 +144,6 @@ acc_gelfand <- hmc_gelfand$acc
 acc_gelfand
 
 theta_g <- hmc_gelfand$samples
-
-
-# # Gelfand (RW–MH)
-# mh_gelfand <- function(S){
-#   theta <- matrix(NA, S, 2)
-#   cur <- c(1,2)
-#   lp <- log_posterior(cur)
-#   
-#   for(s in 1:S){
-#     prop <- cur + rnorm(2, 0, 0.1)
-#     lp_prop <- log_posterior(prop)
-#     if(log(runif(1)) < lp_prop - lp){
-#       cur <- prop; lp <- lp_prop
-#     }
-#     theta[s,] <- cur
-#   }
-#   theta
-# }
 
 
 # Zanella (HMC on q_mix)
@@ -197,12 +173,26 @@ lik_z <- exp(loglik_z)
 
 # LOOCV estimators
 
-# Gelfand ----
+# mu_hat and ELPD from Gelfand ----
 
 mu_g <- sapply(1:n, function(i) 1/mean(1/lik_g[,i]))
 elpd_g <- sum(log(mu_g))
 
-# Zanella (self-normalized mixture) ----
+
+## Important sampling SE
+
+# Gelfand
+num_g <- matrix(1, S, n)
+den_g <- 1/lik_g
+grad_g <- c(rep(1, n), -mu_g)
+
+vec_g <- cbind(num_g, den_g)
+
+foo_g <- mcse.multi(vec_g, r = 1, adjust = FALSE, size = 100)
+Omega_hat_g <- foo_g$cov
+se_g <- as.numeric(t(grad_g) %*% Omega_hat_g %*% grad_g / S)
+
+# mu_hat and ELPD from Zanella (self-normalized mixture) ----
 
 mu_z <- numeric(n)
 num_z <- den_z <- matrix(NA, S, n)
@@ -212,28 +202,20 @@ for(i in 1:n){
   w <- w / sum(w)
   num_z[,i] <- lik_z[,i] * w
   den_z[,i] <- w
-  mu_z[i] <- sum(num_z[,i])
+  mu_z[i] <- sum(num_z[,i])/sum(w)
 }
 
 elpd_z <- sum(log(mu_z))
 
-## Important sampling SE
-
-# Gelfand
-num_g <- matrix(1, S, n)
-den_g <- 1/lik_g
-grad_g <- c(rep(1, n), -mu_g)
-
-foo_g <- mcse.multi(cbind(num_g, den_g), r = 1, adjust = FALSE, size = 100)
-se_g <- as.numeric(t(grad_g) %*% foo_g$cov %*% grad_g / S)
 
 # Zanella (self-normalized)
-g1 <- 1/mu_z
-g2 <- rep(-1, n)
+g1 <- 1/colMeans(num_z)
+g2 <- -1/colMeans(den_z)
 grad_z <- c(g1, g2)
 
 foo_z <- mcse.multi(cbind(num_z, den_z), r = 1, adjust = FALSE, size = 100)
-se_z <- as.numeric(t(grad_z) %*% foo_z$cov %*% grad_z / S)
+Omega_hat_z <- foo_z$cov
+se_z <- as.numeric(t(grad_z) %*% Omega_hat_z %*% grad_z / S)
 
 
 cat("\nGelfand ELPD:", elpd_g, " SE:", se_g, "\n")
@@ -247,7 +229,7 @@ elpd_rep_z <- numeric(reps)
 
 for (r in 1:reps) {
   
-  cat("Replication:", r, "\n")
+  # cat("Replication:", r, "\n")
   
   # Gelfand
   
@@ -306,7 +288,6 @@ cat("Gelfand:\n")
 cat("Mean ELPD:", mean(elpd_rep_g), "\n")
 cat("Var  ELPD:", var(elpd_rep_g), "\n\n")
 
-cat("Zanella (q_mix):\n")
+cat("Zanella:\n")
 cat("Mean ELPD:", mean(elpd_rep_z), "\n")
 cat("Var  ELPD:", var(elpd_rep_z), "\n")
-
