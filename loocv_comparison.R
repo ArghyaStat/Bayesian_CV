@@ -141,9 +141,12 @@ hmc_gelfand <- leapfrog_hmc(
 )
 
 acc_gelfand <- hmc_gelfand$acc
-acc_gelfand
-
+cat(sprintf("HMC Gelfand acceptance rate: %.4f\n", acc_gelfand))
 theta_g <- hmc_gelfand$samples
+
+# ---- Save Posterior Samples ----
+save(theta_g, acc_gelfand, file = "HMC_gelfand.RData")
+load("HMC_gelfand.RData") 
 
 
 # Zanella (HMC on q_mix)
@@ -157,9 +160,16 @@ acc_zanella <- hmc_zanella$acc
 acc_zanella
 theta_z <- hmc_zanella$samples
 
+cat(sprintf("HMC Zanella acceptance rate: %.4f\n", acc_zanella))
+theta_z <- hmc_zanella$samples
 
-# Log-likelihood matrices (FIXED) of dimension S \times n
+# ---- Save Posterior Samples ----
+save(theta_z, acc_zanella, file = "HMC_Zanella.RData")
+load("HMC_Zanella.RData") 
 
+
+# Log-likelihood matrices (FIXED) of dimension S \times n for Gelfand and Zanella
+# S = no.of MCMC samples, n = data size
 
 loglik_g <- loglik_z <- matrix(NA, S, n)
 
@@ -218,10 +228,6 @@ Omega_hat_z <- foo_z$cov
 se_z <- as.numeric(t(grad_z) %*% Omega_hat_z %*% grad_z / S)
 
 
-cat("\nGelfand ELPD:", elpd_g, " SE:", se_g, "\n")
-cat("Zanella ELPD:", elpd_z, " SE:", se_z, "\n")
-
-
 reps <- 1e2
 
 elpd_rep_g <- numeric(reps)
@@ -229,7 +235,7 @@ elpd_rep_z <- numeric(reps)
 
 for (r in 1:reps) {
   
-  # cat("Replication:", r, "\n")
+   cat("Replication:", r, "\n")
   
   # Gelfand
   
@@ -281,7 +287,14 @@ for (r in 1:reps) {
 }
 
 
+###### Outputs ######
 
+#### SE from our method ####
+cat("\nGelfand ELPD:", elpd_g, " SE:", se_g, "\n")
+cat("Zanella ELPD:", elpd_z, " SE:", se_z, "\n")
+
+
+#### SE from Monte Carlo estimator ####
 cat("\nReplication results:\n\n")
 
 cat("Gelfand:\n")
@@ -291,3 +304,4 @@ cat("Var  ELPD:", var(elpd_rep_g), "\n\n")
 cat("Zanella:\n")
 cat("Mean ELPD:", mean(elpd_rep_z), "\n")
 cat("Var  ELPD:", var(elpd_rep_z), "\n")
+
