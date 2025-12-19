@@ -1,4 +1,8 @@
 rm(list = ls())
+
+mydir <- this.path::here()
+setwd(mydir)
+
 set.seed(1)
 
 library(mcmcse)
