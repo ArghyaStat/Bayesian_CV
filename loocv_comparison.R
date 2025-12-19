@@ -292,7 +292,7 @@ for (r in 1:reps) {
   for (i in 1:n) {
     w <- 1 / lik_z[, i]
     w <- w / sum(w)   # self-normalized mixture weights
-    loocv_z[i] <- sum(lik_z[, i] * w)
+    loocv_z[i] <- sum(lik_z[, i] * w)/sum(w)
   }
   
   elpd_rep_z[r] <- sum(log(loocv_z))
