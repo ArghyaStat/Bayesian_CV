@@ -111,11 +111,31 @@ foo_z <- mcse.multi(cbind(num_z, den_z), r = 1, adjust = FALSE, size = 100)
 Omega_hat_z <- foo_z$cov
 se_z <- as.numeric(t(grad_z) %*% Omega_hat_z %*% grad_z / S)
 
+# PSIS
+
+mu_p <- numeric(n)
+num_p <- den_p <- matrix(NA, S, n)
+
+for(i in 1:n){
+  w <- psis_smooth(log_ratios = -loglik_g[,i], tail_frac = 0.2)
+  num_p[,i] <- lik_g[,i] * w
+  den_p[,i] <- w
+  mu_p[i] <- sum(num_p[,i])/sum(den_p[,i])
+}
+
+elpd_p <- sum(log(mu_p))
+
+grad_p <- c(1/colMeans(num_p), -1/colMeans(den_p))
+foo_p <- mcse.multi(cbind(num_p, den_p), adjust = FALSE, r = 1)
+se_p <- as.numeric(t(grad_p) %*% foo_p$cov %*% grad_p / S)
+
+
 
 reps <- 1e2
 
 elpd_rep_g <- numeric(reps)
 elpd_rep_z <- numeric(reps)
+elpd_rep_p <- numeric(reps)
 
 start_time <- Sys.time()  # Start time using Sys.time()
 for (r in 1:reps) {
@@ -125,9 +145,7 @@ for (r in 1:reps) {
     cat(sprintf("Main Phase Progress: %.0f%%, Elapsed time: %.2f seconds\n", 
                 100 * (r / reps), elapsed_time))
   }
-  
-   # cat("Replication:", r, "\n")
-  
+
   # Gelfand
   
   theta_g <- leapfrog_hmc(
@@ -174,6 +192,14 @@ for (r in 1:reps) {
   }
   
   elpd_rep_z[r] <- sum(log(loocv_z))
+  
+  loocv_p <- sapply(1:n, function(i){
+    w <- psis_smooth(log_ratios = -log(lik_g[,i]), tail_frac = 0.2)
+    sum(lik_g[,i]*w)/sum(w)
+  })
+  
+  elpd_rep_p[r] <- sum(log(loocv_p))
+
 }
 end_time <- Sys.time()
 total_elapsed_time <- difftime(end_time, start_time, units = "secs")[[1]] 
@@ -182,8 +208,11 @@ elpd_outputs <- list("elpd_gelfand_is" = elpd_g,
                      "se_elpd_gelfand_is" = se_g,
                      "elpd_zanella_is" = elpd_z,
                      "se_elpd_zanella_is" = se_z,
+                     "elpd_psis_is" = elpd_p,
+                     "se_elpd_psis_is" = se_p,
                      "elpd_gelfand_rep" = elpd_rep_g,
-                     "elpd_zanella_rep" = elpd_rep_z)
+                     "elpd_zanella_rep" = elpd_rep_z,
+                     "elpd_psis_rep" = elpd_rep_p)
 
 save(elpd_outputs, file = "elpd_outputs.RData")
 

@@ -111,3 +111,21 @@ leapfrog_hmc <- function(epsilon, L, niters, U, grad, x_init, M) {
   }
   list(samples = x, acc = acc/niters)
 }
+
+
+psis_smooth <- function(log_ratios, tail_frac){
+  S <- length(log_ratios)
+  M <- ceiling(tail_frac * S)
+  lw <- log_ratios - max(log_ratios)
+  ord <- order(lw)
+  tail <- ord[(S-M+1):S]
+  y <- exp(lw[tail]) - min(exp(lw[tail]))
+  k <- 0.5*(mean(y)^2/var(y) - 1)
+  sigma <- mean(y)*(1+k)
+  p <- (seq_len(M)-0.5)/M
+  smoothed <- min(exp(lw[tail])) + (sigma/k)*((1-p)^(-k)-1)
+  lw[tail] <- log(smoothed)
+  lw <- pmin(lw, 0.5*log(S))
+  w <- exp(lw)
+  w/sum(w)
+}
