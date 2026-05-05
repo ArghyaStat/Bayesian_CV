@@ -225,3 +225,8 @@ save(elpd_outputs, file = "elpd_outputs.RData")
 # ---- Save Posterior Samples ----
 # save(theta_z, acc_zanella, file = "HMC_Zanella.RData")
 # load("HMC_Zanella.RData") 
+
+
+acc_g <- theta_g$acc
+acc_b <- theta_b$acc
+acc_z <- theta_z$acc
