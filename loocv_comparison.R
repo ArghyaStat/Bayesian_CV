@@ -185,6 +185,7 @@ for (r in 1:reps) {
   }
   
   loocv_z <- numeric(n)
+  
   for (i in 1:n) {
     w <- 1 / lik_z[, i]
     w <- w / sum(w)   # self-normalized mixture weights

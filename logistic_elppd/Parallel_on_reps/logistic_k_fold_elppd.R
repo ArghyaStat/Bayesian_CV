@@ -1,3 +1,9 @@
+rm(list = ls())
+
+mydir <- this.path::here()
+setwd(mydir)
+
+
 library(doParallel)
 library(foreach)
 library(mcmcse)
@@ -157,15 +163,35 @@ results <- foreach(r=1:reps, .combine=rbind,
                      # -------------------------
                      # HMC
                      # -------------------------
-                     hmc_g <- leapfrog_hmc(1e-2,5,S,U_post,grad_post,rep(0,p),diag(p))
+                     hmc_g <- leapfrog_hmc(epsilon = 1e-2, 
+                                           L = 10, 
+                                           niters = S, 
+                                           U = U_post, 
+                                           grad = grad_post, 
+                                           x_init = rep(0,p), 
+                                           M = diag(p))
+                       
+                       
                      theta_g <- hmc_g$samples
                      acc_g <- hmc_g$acc
                      
-                     hmc_b <- leapfrog_hmc(1e-2,5,S,U_b,grad_b,rep(0,p),diag(p))
+                     hmc_b <- leapfrog_hmc(epsilon = 1e-2, 
+                                           L = 10, 
+                                           niters = S, 
+                                           U = U_b, 
+                                           grad = grad_b, 
+                                           x_init = rep(0,p), 
+                                           M = diag(p))
                      theta_b <- hmc_b$samples
                      acc_b <- hmc_b$acc
                      
-                     hmc_z <- leapfrog_hmc(1e-2,5,S,U_z,grad_z,rep(0,p),diag(p))
+                     hmc_z <- leapfrog_hmc(epsilon = 1e-2, 
+                                           L = 10, 
+                                           niters = S, 
+                                           U = U_z, 
+                                           grad = grad_z, 
+                                           x_init = rep(0,p), 
+                                           M = diag(p))
                      theta_z <- hmc_z$samples
                      acc_z <- hmc_z$acc
                      
@@ -231,3 +257,15 @@ results <- foreach(r=1:reps, .combine=rbind,
                    }
 
 stopCluster(cl)
+
+# -----------------------------
+# OUTPUT
+# -----------------------------
+colnames(results) <- c(
+  "elpd_g","var_g","varS_g",
+  "elpd_b","var_b","varS_b",
+  "elpd_z","var_z","varS_z",
+  "acc_g","acc_b","acc_z"
+)
+
+save(results, file="k_fold_elppd_logistic.RData")
