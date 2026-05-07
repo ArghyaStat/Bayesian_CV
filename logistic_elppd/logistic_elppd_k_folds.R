@@ -10,7 +10,7 @@ set.seed(123)
 
 n <- 50
 p <- 10
-K <- 50
+K <- 10
 S <- 1e4
 sigma2 <- 1e2
 
@@ -323,10 +323,7 @@ results <- foreach(r = 1:reps,
                      
                      elpd_g <- sum(log(mu_g))
                      
-                     grad_g <- c(
-                       1/colMeans(num_g),
-                       -1/colMeans(den_g)
-                     )
+                     grad_g <- c(rep(1,n), -mu_g)
                      
                      Omega_g <- mcse.multi(
                        cbind(num_g, den_g),
