@@ -6,18 +6,12 @@ library(mcmcse)
 
 set.seed(123)
 
-# -----------------------------
-# SETTINGS
-# -----------------------------
 n <- 50
 p <- 10
-K <- 5
+K <- n
 S <- 1e4
 sigma2 <- 1e2
 
-# -----------------------------
-# DATA
-# -----------------------------
 sim_data <- function(n, p){
   X <- matrix(rnorm(n*p), n, p)
   beta <- rnorm(p)
@@ -33,9 +27,6 @@ y <- dat$y
 
 kappa <- sample(rep(1:K, length.out=n))
 
-# -----------------------------
-# HELPERS
-# -----------------------------
 log_sum_exp <- function(x){
   m <- max(x)
   m + log(sum(exp(x - m)))
@@ -50,9 +41,6 @@ log_prior <- function(theta){
   sum(dnorm(theta,0,sqrt(sigma2),log=TRUE))
 }
 
-# -----------------------------
-# GRADIENTS
-# -----------------------------
 grad_post <- function(theta){
   eta <- X %*% theta
   p_hat <- 1/(1+exp(-eta))
@@ -90,9 +78,6 @@ grad_z <- function(theta){
   -(grad_ll + grad_mix + theta/sigma2)
 }
 
-# -----------------------------
-# TARGETS
-# -----------------------------
 U_post <- function(theta){
   -(sum(log_like(theta,X,y)) + log_prior(theta))
 }
@@ -108,9 +93,6 @@ U_z <- function(theta){
   -( sum(ll_vec) + log_sum_exp(-fold_ll) + log_prior(theta) )
 }
 
-# -----------------------------
-# HMC
-# -----------------------------
 leapfrog_hmc <- function(epsilon, L, niters, U, grad, x_init, M) {
   d <- length(x_init)
   M_inv <- chol2inv(chol(M))
@@ -148,9 +130,7 @@ leapfrog_hmc <- function(epsilon, L, niters, U, grad, x_init, M) {
   list(samples = x, acc = acc/niters)
 }
 
-# -----------------------------
-# FOLD LIKELIHOODS
-# -----------------------------
+# fold likelihood with kappa function
 compute_fold_lik <- function(lik){
   sapply(1:K, function(k){
     idx <- which(kappa==k)
@@ -158,9 +138,6 @@ compute_fold_lik <- function(lik){
   })
 }
 
-# -----------------------------
-# PARALLEL
-# -----------------------------
 reps <- 100
 cl <- makeCluster(10)
 registerDoParallel(cl)
@@ -193,9 +170,7 @@ results <- foreach(r = 1:reps, .combine = rbind,
                      
                      full_lik_b <- apply(lik_b,1,prod)
                      
-                     # =========================
                      # Gelfand
-                     # =========================
                      mu_g <- numeric(n)
                      num_g <- matrix(1,S,n)
                      den_g <- 1/lik_g
@@ -206,13 +181,12 @@ results <- foreach(r = 1:reps, .combine = rbind,
                      
                      elpd_g <- sum(log(mu_g))
                      
-                     grad_g <- c(rep(1,n), -mu_g)
-                     Omega_g <- mcse.multi(cbind(num_g, den_g), r=1)$cov
-                     var_g <- as.numeric(t(grad_g) %*% Omega_g %*% grad_g / S)
+                     grad_g <- c(1/colMeans(num_g), -1/colMeans(den_g))
+                     Omega_g <- mcse.multi(cbind(num_g, den_g), r=1,
+                                           adjust = FALSE, size = 100)$cov
+                     se_g <- as.numeric(t(grad_g) %*% Omega_g %*% grad_g / S)
                      
-                     # =========================
                      # Bronze
-                     # =========================
                      mu_b <- numeric(n)
                      num_b <- den_b <- matrix(NA,S,n)
                      
@@ -233,12 +207,11 @@ results <- foreach(r = 1:reps, .combine = rbind,
                      elpd_b <- sum(log(mu_b))
                      
                      grad_b_vec <- c(1/colMeans(num_b), -1/colMeans(den_b))
-                     Omega_b <- mcse.multi(cbind(num_b, den_b), r=1)$cov
-                     var_b <- as.numeric(t(grad_b_vec) %*% Omega_b %*% grad_b_vec / S)
+                     Omega_b <- mcse.multi(cbind(num_b, den_b), r=1,
+                                           adjust = FALSE, size = 100)$cov
+                     se_b <- as.numeric(t(grad_b_vec) %*% Omega_b %*% grad_b_vec / S)
                      
-                     # =========================
                      # Zanella
-                     # =========================
                      mu_z <- numeric(n)
                      num_z <- den_z <- matrix(NA,S,n)
                      
@@ -258,20 +231,21 @@ results <- foreach(r = 1:reps, .combine = rbind,
                      elpd_z <- sum(log(mu_z))
                      
                      grad_z_vec <- c(1/colMeans(num_z), -1/colMeans(den_z))
-                     Omega_z <- mcse.multi(cbind(num_z, den_z), r=1)$cov
-                     var_z <- as.numeric(t(grad_z_vec) %*% Omega_z %*% grad_z_vec / S)
+                     Omega_z <- mcse.multi(cbind(num_z, den_z), r=1,
+                                           adjust = FALSE, size = 100)$cov
+                     se_z <- as.numeric(t(grad_z_vec) %*% Omega_z %*% grad_z_vec / S)
                      
-                     c(elpd_g, var_g, acc_g,
-                       elpd_b, var_b, acc_b,
-                       elpd_z, var_z, acc_z)
+                     c(elpd_g, se_g, acc_g,
+                       elpd_b, se_b, acc_b,
+                       elpd_z, se_z, acc_z)
                    }
 
 stopCluster(cl)
 
 colnames(results) <- c(
-  "elpd_g","var_g", "acc_g",
-  "elpd_b","var_b", "acc_b",
-  "elpd_z","var_z", "acc_z"
+  "elpd_g","se_g", "acc_g",
+  "elpd_b","se_b", "acc_b",
+  "elpd_z","se_z", "acc_z"
 )
 
 save(results, file = paste0(K, "_fold_elppd_with_var.RData"))
