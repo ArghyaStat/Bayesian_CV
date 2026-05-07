@@ -6,18 +6,16 @@ library(mcmcse)
 
 set.seed(123)
 
-# -----------------------------
-# SETTINGS
-# -----------------------------
+# Simulation design
+
 n <- 50
 p <- 10
-K <- 5
+K <- 50
 S <- 1e4
 sigma2 <- 1e2
 
-# -----------------------------
-# DATA
-# -----------------------------
+# Data generation
+
 sim_data <- function(n, p){
   
   X <- matrix(rnorm(n*p), n, p)
@@ -38,19 +36,18 @@ dat <- sim_data(n, p)
 X <- dat$X
 y <- dat$y
 
-# -----------------------------
-# RANDOM K-FOLD SPLIT
-# -----------------------------
+# K-fold splitting
+
 fold_id <- sample(rep(1:K, length.out = n))
 
 # indexing map kappa(i)
+
 kappa <- function(i, fold_id){
   fold_id[i]
 }
 
-# -----------------------------
-# HELPERS
-# -----------------------------
+# Stable computation at log-scale adjustment
+
 log_sum_exp <- function(x){
   
   m <- max(x)
@@ -70,9 +67,8 @@ log_prior <- function(theta){
   sum(dnorm(theta, 0, sqrt(sigma2), log = TRUE))
 }
 
-# -----------------------------
-# GRADIENTS
-# -----------------------------
+# Gradients for different methods
+
 grad_post <- function(theta){
   
   eta <- X %*% theta
@@ -130,9 +126,8 @@ grad_z <- function(theta){
   -(grad_ll + grad_mix + theta/sigma2)
 }
 
-# -----------------------------
-# TARGETS
-# -----------------------------
+# Potentials
+
 U_post <- function(theta){
   
   -(sum(log_like(theta, X, y)) + log_prior(theta))
@@ -159,9 +154,8 @@ U_z <- function(theta){
   -( sum(ll_vec) + log_sum_exp(-fold_ll) + log_prior(theta) )
 }
 
-# -----------------------------
-# HMC
-# -----------------------------
+# HMC code from (HMC for dummies)
+
 leapfrog_hmc <- function(epsilon,
                          L,
                          niters,
@@ -229,9 +223,8 @@ leapfrog_hmc <- function(epsilon,
        acc = acc/niters)
 }
 
-# -----------------------------
-# FOLD LIKELIHOODS
-# -----------------------------
+# fold likelihoods
+
 compute_fold_lik <- function(lik){
   
   sapply(1:K, function(k){
@@ -242,17 +235,13 @@ compute_fold_lik <- function(lik){
   })
 }
 
-# -----------------------------
-# PARALLEL
-# -----------------------------
+
 reps <- 100
 
-cl <- makeCluster(10)
+cl <- makeCluster(50)
 
 registerDoParallel(cl)
 
-
-# .export = ls()
 
 results <- foreach(r = 1:reps,
                    .combine = rbind,
@@ -290,9 +279,8 @@ results <- foreach(r = 1:reps,
                      samples_b <- theta_b$samples
                      samples_z <- theta_z$samples
                      
-                     # -------------------------
-                     # LIKELIHOODS
-                     # -------------------------
+                     # Likelihood computations from different methods
+                     
                      lik_g <- t(
                        exp(
                          sapply(1:S, function(s)
@@ -320,9 +308,8 @@ results <- foreach(r = 1:reps,
                      
                      full_lik_b <- apply(lik_b, 1, prod)
                      
-                     # ==================================================
-                     # GELFAND
-                     # ==================================================
+                     # Gelfand's method
+                     
                      mu_g <- numeric(n)
                      
                      num_g <- matrix(1, S, n)
@@ -352,9 +339,8 @@ results <- foreach(r = 1:reps,
                        t(grad_g) %*% Omega_g %*% grad_g / S
                      )
                      
-                     # ==================================================
-                     # BRONZE
-                     # ==================================================
+                     # Bronze method
+                     
                      mu_b <- numeric(n)
                      
                      num_b <- matrix(NA, S, n)
@@ -398,9 +384,8 @@ results <- foreach(r = 1:reps,
                        t(grad_b_vec) %*% Omega_b %*% grad_b_vec / S
                      )
                      
-                     # ==================================================
-                     # ZANELLA
-                     # ==================================================
+                    # Zanella's method
+                     
                      mu_z <- numeric(n)
                      
                      num_z <- matrix(NA, S, n)
@@ -449,9 +434,8 @@ results <- foreach(r = 1:reps,
 
 stopCluster(cl)
 
-# -----------------------------
-# OUTPUT
-# -----------------------------
+# Outputs
+
 colnames(results) <- c(
   "elpd_g", "var_g", "acc_g",
   "elpd_b", "var_b", "acc_b",
