@@ -3,104 +3,198 @@ rm(list = ls())
 mydir <- this.path::here()
 setwd(mydir)
 
-# -----------------------------
-# LOAD DATA
-# -----------------------------
-load("5_fold_elppd_logistic.RData")
+
+load("5_fold_elppd_outputs.RData")
 res5 <- results
 
-load("10_fold_elppd_logistic.RData")
+load("10_fold_elppd_outputs.RData")
 res10 <- results
 
-load("n_fold_elppd_logistic.RData")
+load("50_fold_elppd_outputs.RData")
 resn <- results
 
-# -----------------------------
-# COLUMN NAMES
-# -----------------------------
-cn <- c(
-  "elpd_g","var_g","varS_g",
-  "elpd_b","var_b","varS_b",
-  "elpd_z","var_z","varS_z",
-  "acc_g","acc_b","acc_z"
-)
+
+cn <- c("elpd_g","var_g","acc_g",
+        "elpd_b","var_b","acc_b",
+        "elpd_z","var_z","acc_z")
 
 colnames(res5)  <- cn
 colnames(res10) <- cn
 colnames(resn)  <- cn
 
-# -----------------------------
-# COLORS
-# -----------------------------
-cols <- c("steelblue", "darkorange", "forestgreen")
 
-# -----------------------------
-# BUILD DATA (CLT vs Sample)
-# -----------------------------
-build_method_list <- function(res5, res10, resn, var_name, varS_name){
-  
-  list(
-    res5[,var_name],  res5[,varS_name],
-    res10[,var_name], res10[,varS_name],
-    resn[,var_name],  resn[,varS_name]
-  )
-}
+varS5 <- c(var(res5[,"elpd_g"]),
+           var(res5[,"elpd_b"]),
+           var(res5[,"elpd_z"]))
 
-G_list <- build_method_list(res5, res10, resn, "var_g", "varS_g")
-B_list <- build_method_list(res5, res10, resn, "var_b", "varS_b")
-Z_list <- build_method_list(res5, res10, resn, "var_z", "varS_z")
+varS10 <- c(var(res10[,"elpd_g"]),
+            var(res10[,"elpd_b"]),
+            var(res10[,"elpd_z"]))
 
-# -----------------------------
-# PDF
-# -----------------------------
-pdf("kfold_variance_comparison.pdf", width = 14, height = 4)
+varSn <- c(var(resn[,"elpd_g"]),
+           var(resn[,"elpd_b"]),
+            var(resn[,"elpd_z"]))
+
+
+data5 <- list(
+  res5[,"var_g"],
+  res5[,"var_b"],
+  res5[,"var_z"]
+)
+
+data10 <- list(
+  res10[,"var_g"],
+  res10[,"var_b"],
+  res10[,"var_z"]
+)
+
+datan <- list(
+  resn[,"var_g"],
+  resn[,"var_b"],
+  resn[,"var_z"]
+)
+
+
+cols <- c(
+  "steelblue",
+  "darkorange",
+  "forestgreen"
+)
+
+
+pdf("Logistic_k_fold_variance_comparison.pdf",
+    width = 12,
+    height = 4)
 
 par(mfrow = c(1,3),
-    mar  = c(3.5, 4, 2, 1),
+    mar  = c(3.5,4,2,1),
     mgp  = c(2,0.7,0),
     tcl  = -0.3,
-    cex.lab  = 1.4,
-    cex.axis = 1.2,
-    cex.main = 1.4)
+    cex.lab  = 1.3,
+    cex.axis = 1.1,
+    cex.main = 1.3)
 
-# -----------------------------
-# PLOT FUNCTION
-# -----------------------------
-plot_panel <- function(data_list, title){
+
+plot_panel <- function(data_list,
+                       sample_var,
+                       title){
   
-  # positions (pairwise spacing)
-  pos <- c(1,2, 4,5, 7,8)
+  pos <- c(1,2,3)
   
   boxplot(data_list,
           at = pos,
-          col = rep(cols, each = 2),
+          col = cols,
           border = "black",
           xaxt = "n",
-          main = title,
-          ylab = "Variance")
+          ylab = "Variance",
+          main = title)
   
   axis(1,
-       at = c(1.5,4.5,7.5),
-       labels = c("K=5","K=10","K=n"))
+       at = pos,
+       labels = c("Gelfand",
+                  "Bronze",
+                  "Zanella"))
   
-  # vertical separators
-  abline(v = c(3,6), lty=2, col="gray70")
+  # sample variance benchmark
+  segments(pos - 0.25,
+           sample_var,
+           pos + 0.25,
+           sample_var,
+           lwd = 3,
+           col = "red")
+  
+  legend("topright",
+         legend = "Sample variance",
+         lwd = 3,
+         col = "red",
+         bty = "n",
+         cex = 1)
 }
 
-# -----------------------------
-# PLOTS
-# -----------------------------
-plot_panel(G_list, "G (Gelfand)")
-plot_panel(B_list, "B (Bronze)")
-plot_panel(Z_list, "Z (Zanella)")
 
-# -----------------------------
-# LEGEND
-# -----------------------------
-legend("topright",
-       legend = c("CLT variance","Sample variance"),
-       fill = c("gray70","gray30"),
-       bty = "n",
-       cex = 1.1)
+plot_panel(data5,
+           varS5,
+           "K = 5")
+
+plot_panel(data10,
+           varS10,
+           "K = 10")
+
+plot_panel(datan,
+           varSn,
+           "K = n")
+
+dev.off()
+
+# Data frame for ELPDs
+
+data5_elpd <- list(
+  res5[,"elpd_g"],
+  res5[,"elpd_b"],
+  res5[,"elpd_z"]
+)
+
+data10_elpd <- list(
+  res10[,"elpd_g"],
+  res10[,"elpd_b"],
+  res10[,"elpd_z"]
+)
+
+datan_elpd <- list(
+  resn[,"elpd_g"],
+  resn[,"elpd_b"],
+  resn[,"elpd_z"]
+)
+
+# Plots for ELPD
+
+pdf("Logistic_k_fold_elpd_comparison.pdf",
+    width = 12,
+    height = 4)
+
+par(mfrow = c(1,3),
+    mar  = c(3.5,4,2,1),
+    mgp  = c(2,0.7,0),
+    tcl  = -0.3,
+    cex.lab  = 1.3,
+    cex.axis = 1.1,
+    cex.main = 1.3)
+
+plot_elpd_panel <- function(data_list,
+                            title){
+  
+  pos <- c(1,2,3)
+  
+  boxplot(data_list,
+          at = pos,
+          col = cols,
+          border = "black",
+          xaxt = "n",
+          ylab = "ELPD",
+          main = title)
+  
+  axis(1,
+       at = pos,
+       labels = c(
+         "Gelfand",
+         "Bronze",
+         "Zanella"
+       ))
+}
+
+plot_elpd_panel(
+  data5_elpd,
+  "K = 5"
+)
+
+plot_elpd_panel(
+  data10_elpd,
+  "K = 10"
+)
+
+plot_elpd_panel(
+  datan_elpd,
+  "K = n"
+)
 
 dev.off()
