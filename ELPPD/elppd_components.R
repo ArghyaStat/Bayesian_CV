@@ -2,26 +2,21 @@ tuple_function <- function(log_lik_mat,
                            method,
                            alpha_obs = NULL){
   
-  method <- match.arg(
-    method,
-    c(
-      "Gelfand",
-      "Bronze",
-      "Zanella"
-    )
-  )
+  method <- match.arg(method, c("Gelfand", "Bronze", "Zanella"))
   
   S <- nrow(log_lik_mat)
   
   n <- ncol(log_lik_mat)
   
-  # -------------------------------------------------------
   # Gelfand
-  # -------------------------------------------------------
   
   if(method == "Gelfand"){
     
-    numerator <- NULL
+    numerator <- matrix(
+      1,
+      nrow(log_lik_mat),
+      ncol(log_lik_mat)
+    )
     
     denominator <- exp(-log_lik_mat)
   }
