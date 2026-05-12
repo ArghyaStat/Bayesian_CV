@@ -1,83 +1,93 @@
-
-# Gelfand
-
-tuple_g <- function(log_lik_mat){
+tuple_function <- function(log_lik_mat,
+                           method,
+                           alpha_obs = NULL){
   
-  den <- exp(-log_lik_mat)
-  
-  list(
-    numerator = NULL,
-    denominator = den
+  method <- match.arg(
+    method,
+    c(
+      "Gelfand",
+      "Bronze",
+      "Zanella"
+    )
   )
-}
-
-
-
-# ---------------------------------------------------------
-# Bronze
-# ---------------------------------------------------------
-
-tuple_b <- function(log_lik_mat,
-                    alpha_obs){
-  
-  num <- exp(
-    sweep(log_lik_mat,
-          2,
-          1 - alpha_obs,
-          "*")
-  )
-  
-  den <- exp(
-    sweep(log_lik_mat,
-          2,
-          -alpha_obs,
-          "*")
-  )
-  
-  list(
-    numerator = num,
-    denominator = den
-  )
-}
-
-
-
-# ---------------------------------------------------------
-# Zanella
-# ---------------------------------------------------------
-
-tuple_z <- function(log_lik_mat){
   
   S <- nrow(log_lik_mat)
   
   n <- ncol(log_lik_mat)
   
-  log_inv <- -log_lik_mat
+  # -------------------------------------------------------
+  # Gelfand
+  # -------------------------------------------------------
   
-  log_denom <- apply(
-    log_inv,
-    1,
-    log_sum_exp
-  )
-  
-  den <- matrix(0, S, n)
-  
-  for(i in 1:n){
+  if(method == "Gelfand"){
     
-    den[, i] <- exp(
-      log_inv[, i] -
-        log_denom
+    numerator <- NULL
+    
+    denominator <- exp(-log_lik_mat)
+  }
+  
+  # -------------------------------------------------------
+  # Bronze
+  # -------------------------------------------------------
+  
+  if(method == "Bronze"){
+    
+    numerator <- exp(
+      sweep(
+        log_lik_mat,
+        2,
+        1 - alpha_obs,
+        "*"
+      )
+    )
+    
+    denominator <- exp(
+      sweep(
+        log_lik_mat,
+        2,
+        -alpha_obs,
+        "*"
+      )
     )
   }
   
-  num <- exp(log_lik_mat) * den
+  # -------------------------------------------------------
+  # Zanella
+  # -------------------------------------------------------
+  
+  if(method == "Zanella"){
+    
+    log_inv <- -log_lik_mat
+    
+    log_denom <- apply(
+      log_inv,
+      1,
+      log_sum_exp
+    )
+    
+    denominator <- matrix(
+      0,
+      S,
+      n
+    )
+    
+    for(i in 1:n){
+      
+      denominator[, i] <- exp(
+        log_inv[, i] -
+          log_denom
+      )
+    }
+    
+    numerator <- exp(log_lik_mat) *
+      denominator
+  }
   
   list(
-    numerator = num,
-    denominator = den
+    numerator = numerator,
+    denominator = denominator
   )
 }
-
 # Truncated IS
 # ---------------------------------------------------------
 
