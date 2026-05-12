@@ -21,34 +21,25 @@ tuple_function <- function(log_lik_mat,
     denominator <- exp(-log_lik_mat)
   }
   
-  # -------------------------------------------------------
+
   # Bronze
-  # -------------------------------------------------------
   
   if(method == "Bronze"){
     
-    numerator <- exp(
-      sweep(
-        log_lik_mat,
-        2,
-        1 - alpha_obs,
-        "*"
-      )
-    )
+    numerator <- exp(log_lik_mat * matrix(1 - alpha_obs, 
+                                          nrow(log_lik_mat),
+                                          ncol(log_lik_mat),
+                                          byrow = TRUE
+                                          ))
     
-    denominator <- exp(
-      sweep(
-        log_lik_mat,
-        2,
-        -alpha_obs,
-        "*"
-      )
-    )
+    denominator <- exp(log_lik_mat * matrix(-alpha_obs,
+                                            nrow(log_lik_mat),
+                                            ncol(log_lik_mat),
+                                            byrow = TRUE))
   }
   
-  # -------------------------------------------------------
+  
   # Zanella
-  # -------------------------------------------------------
   
   if(method == "Zanella"){
     
@@ -84,7 +75,7 @@ tuple_function <- function(log_lik_mat,
   )
 }
 # Truncated IS
-# ---------------------------------------------------------
+
 
 truncate_weights <- function(w){
   
