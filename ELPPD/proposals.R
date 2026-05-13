@@ -121,12 +121,16 @@ grad_log_q_z <- function(theta,
 
 
 ## Potential energy functions
+# =========================================================
+# HMC target energies
+# =========================================================
 
 U_g <- function(theta,
                 X,
                 y,
                 log_like,
-                log_prior){
+                log_prior,
+                ...){
   
   -log_q_g(
     theta = theta,
@@ -138,11 +142,13 @@ U_g <- function(theta,
 }
 
 
+
 grad_g <- function(theta,
                    X,
                    y,
                    grad_log_like,
-                   grad_log_prior){
+                   grad_log_prior,
+                   ...){
   
   -grad_log_q_g(
     theta = theta,
@@ -160,7 +166,8 @@ U_b <- function(theta,
                 y,
                 alpha,
                 log_like,
-                log_prior){
+                log_prior,
+                ...){
   
   -log_q_b(
     theta = theta,
@@ -173,12 +180,14 @@ U_b <- function(theta,
 }
 
 
+
 grad_b <- function(theta,
                    X,
                    y,
                    alpha,
                    grad_log_like,
-                   grad_log_prior){
+                   grad_log_prior,
+                   ...){
   
   -grad_log_q_b(
     theta = theta,
@@ -196,7 +205,8 @@ U_z <- function(theta,
                 X,
                 y,
                 log_like,
-                log_prior){
+                log_prior,
+                ...){
   
   -log_q_z(
     theta = theta,
@@ -208,12 +218,14 @@ U_z <- function(theta,
 }
 
 
+
 grad_z <- function(theta,
                    X,
                    y,
                    grad_log_like,
                    grad_log_prior,
-                   log_like){
+                   log_like,
+                   ...){
   
   -grad_log_q_z(
     theta = theta,

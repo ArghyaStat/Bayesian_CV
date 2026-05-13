@@ -68,10 +68,14 @@ truncate_weights <- function(w){
 
 # Batch means cholesky of covariance estimator
 
-bm.chol.omega <- function(Y, b = NULL){
+bm.quad.form <- function(Y,
+                         v,
+                         b = NULL){
   
   Y <- as.matrix(Y)
+  
   S <- nrow(Y)
+  
   p <- ncol(Y)
   
   if(is.null(b)){
@@ -83,38 +87,45 @@ bm.chol.omega <- function(Y, b = NULL){
   
   S_trim <- a * b
   
-  Y <- Y[1:S_trim , , drop = FALSE]
+  Y <- Y[
+    1:S_trim,
+    ,
+    drop = FALSE
+  ]
   
-  batch_means <- matrix(0, a, p)
+  batch_means <- matrix(
+    0,
+    a,
+    p
+  )
   
-  for(k in 1:a){
+  for(k in seq_len(a)){
     
     idx <- ((k - 1) * b + 1):(k * b)
-    batch_means[k, ] <- colMeans(Y[idx, , drop = FALSE])
-  
+    
+    batch_means[k, ] <-
+      colMeans(
+        Y[idx, , drop = FALSE]
+      )
   }
+  
+  # Centered batch means matrix
   
   grand_mean <- colMeans(batch_means)
   
-  B <- sqrt(b / (a - 1)) * sweep(batch_means,
-                                 2, 
-                                 grand_mean)
+  B <- sqrt(b / (a - 1)) *
+    sweep(
+      batch_means,
+      2,
+      grand_mean
+    )
   
-  chol(crossprod(B))
+  
+  Bv <- B %*% v
+  
+  as.numeric(crossprod(Bv))
 }
 
-# Batch means quadratic form
-
-bm.quad.form <- function(Y,
-                         v,
-                         b = NULL){
-  
-  U <- bm.chol.omega(Y, b)
-  
-  Uv <- U %*% v
-  
-  as.numeric(crossprod(Uv))
-}
 
 # Asymptotic variance estimator
 
