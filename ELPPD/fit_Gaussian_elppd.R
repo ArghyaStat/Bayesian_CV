@@ -21,6 +21,8 @@ p <- 10
 K <- 5
 S <- 1e4
 
+# Hyperparameters
+
 sigma2 <- 1
 tau2 <- 1e2
 
@@ -37,11 +39,9 @@ sim_data <- function(n, p){
   
   y <- X %*% beta_true + rnorm(n, sd = sqrt(sigma2))
   
-  list(
-    X = X,
-    y = as.vector(y),
-    beta_true = beta_true
-  )
+  list(X = X,
+       y = as.vector(y),
+       beta_true = beta_true)
 }
 
 dat <- sim_data(n, p)

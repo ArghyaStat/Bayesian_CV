@@ -66,60 +66,36 @@ truncate_weights <- function(w){
 }
 
 
-# Batch means cholesky of covariance estimator
+# Batch means quadratic form t(v) %*% Omega %*% v
 
-bm.quad.form <- function(Y,
-                         v,
+bm.quad.form <- function(Y, v,
                          b = NULL){
   
   Y <- as.matrix(Y)
-  
   S <- nrow(Y)
-  
   p <- ncol(Y)
   
-  if(is.null(b)){
-    
-    b <- floor(sqrt(S))
-  }
+  if(is.null(b)){ b <- floor(sqrt(S))}
   
   a <- floor(S / b)
-  
   S_trim <- a * b
   
-  Y <- Y[
-    1:S_trim,
-    ,
-    drop = FALSE
-  ]
+  Y <- Y[1:S_trim , , drop = FALSE]
   
-  batch_means <- matrix(
-    0,
-    a,
-    p
-  )
+  batch_means <- matrix(0, a, p)
   
   for(k in seq_len(a)){
     
     idx <- ((k - 1) * b + 1):(k * b)
     
-    batch_means[k, ] <-
-      colMeans(
-        Y[idx, , drop = FALSE]
-      )
+    batch_means[k, ] <- colMeans( Y[idx, , drop = FALSE])
   }
   
   # Centered batch means matrix
   
   grand_mean <- colMeans(batch_means)
   
-  B <- sqrt(b / (a - 1)) *
-    sweep(
-      batch_means,
-      2,
-      grand_mean
-    )
-  
+  B <- sqrt(b / (a - 1)) * sweep(batch_means, 2, grand_mean)
   
   Bv <- B %*% v
   
@@ -129,26 +105,20 @@ bm.quad.form <- function(Y,
 
 # Asymptotic variance estimator
 
-asymp.var.elppd <- function(num,
-                            den,
-                            S,
-                            b = NULL){
+asymp.var.elppd <- function(num, den, S, b = NULL){
   
   if(is.null(num)){
     
     v <- -1 / colMeans(den)
-    
     Y <- den
-    
     mu <- 1 / colMeans(den)
     
   } else {
     
     v <- c(1 / colMeans(num), -1 / colMeans(den))
-    
     Y <- cbind(num, den)
-    
     mu <- colMeans(num) / colMeans(den)
+    
   }
   
   qf <- bm.quad.form(Y = Y, v = v, b = b)
