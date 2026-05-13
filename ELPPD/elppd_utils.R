@@ -17,86 +17,173 @@ truncate_weights <- function(w){
   pmin(w, tau)
 }
 
-# Generalized Pareto quantile function
-
-qgpd <- function(p, k, sigma){
+gpd_quantile <- function(p, k, sigma, u) {
   
-  if(abs(k) < 1e-8){
+  if(abs(k) < 1e-8) {
     
-    -sigma * log(1 - p)
+    return(
+      u - sigma * log(1 - p)
+    )
     
   } else {
     
-    sigma / k * ((1 - p)^(-k) - 1)
+    return(
+      u + (sigma / k) * ((1 - p)^(-k) - 1)
+    )
+    
   }
+  
 }
 
-# Pareto smoothed importance sampling weights
 
-psis_weights <- function(w,
-                         tail_frac = 0.2){
+psis_weights <- function(log_ratios) {
   
-  S <- length(w)
+  S <- length(log_ratios)
   
-  # Number of tail samples
+  ############################################
+  # Stabilize
+  ############################################
   
-  M <- ceiling(tail_frac * S)
+  log_ratios <- log_ratios - max(log_ratios)
   
+  ############################################
+  # Raw importance ratios
+  ############################################
+  
+  rs <- exp(log_ratios)
+  
+  ############################################
   # Order statistics
+  ############################################
   
-  ord <- order(w)
+  ord <- order(rs)
   
-  w_sorted <- w[ord]
+  rs_sorted <- rs[ord]
   
-  # Threshold
+  ############################################
+  # Tail size
+  ############################################
   
-  threshold_idx <- S - M + 1
+  M <- floor(min(0.2 * S, 3 * sqrt(S)))
   
-  threshold <- w_sorted[threshold_idx]
+  M <- max(M, 5)
   
+  ############################################
+  # Threshold:
+  # T = r_{S-M+1:S}
+  ############################################
+  
+  threshold_index <- S - M + 1
+  
+  u_hat <- rs_sorted[threshold_index]
+  
+  ############################################
   # Tail excesses
+  ############################################
   
-  tail_weights <- w_sorted[threshold_idx:S]
+  excess <- rs_sorted[threshold_index:S] - u_hat
   
-  excesses <- tail_weights - threshold
+  ############################################
+  # Method-of-moments GPD estimates
+  ############################################
   
-  # Fit generalized Pareto to excesses
+  m1 <- mean(excess)
   
-  fit <- loo::gpdfit(excesses)
+  m2 <- mean(excess^2)
   
-  k <- fit$k
-  sigma <- fit$sigma
+  denom <- m2 - m1^2
   
-  # Smoothed tail quantiles
+  if(denom <= 0 || !is.finite(denom)) {
+    
+    k_hat <- 0
+    
+    sigma_hat <- m1
+    
+  } else {
+    
+    k_hat <- 0.5 * (m2 / denom - 1)
+    
+    sigma_hat <- 0.5 * m1 * (m2 / denom + 1)
+    
+  }
   
-  p <- ((1:M) - 0.5) / M
+  ############################################
+  # Numerical safeguards
+  ############################################
   
-  smoothed_excess <- qgpd(p,
-                          k = k,
-                          sigma = sigma)
+  if(!is.finite(k_hat))
+    k_hat <- 0
   
-  smoothed_tail <- threshold + smoothed_excess
+  if(!is.finite(sigma_hat) || sigma_hat <= 0)
+    sigma_hat <- m1
   
-  # Replace tail weights
+  ############################################
+  # Pareto smoothing of upper tail
+  ############################################
   
-  w_smoothed <- w_sorted
+  ws_sorted <- rs_sorted
   
-  w_smoothed[threshold_idx:S] <- smoothed_tail
+  for(z in 1:M) {
+    
+    p <- (z - 0.5) / M
+    
+    smoothed <- gpd_quantile(
+      p = p,
+      k = k_hat,
+      sigma = sigma_hat,
+      u = u_hat
+    )
+    
+    ##########################################
+    # Truncate at maximum raw ratio
+    ##########################################
+    
+    ws_sorted[threshold_index + z - 1] <- min(
+      smoothed,
+      max(rs)
+    )
+    
+  }
   
-  # Optional stabilization:
-  # truncate at largest raw weight
+  ############################################
+  # Restore original order
+  ############################################
   
-  w_smoothed <- pmin(w_smoothed,
-                     max(w))
+  ws <- numeric(S)
   
-  # Return original ordering
+  ws[ord] <- ws_sorted
   
-  out <- numeric(S)
+  ############################################
+  # Self-normalized IS weights
+  ############################################
   
-  out[ord] <- w_smoothed
+  ws <- ws / sum(ws)
   
-  out
+  ############################################
+  # Pareto-k diagnostic
+  ############################################
+  
+  threshold <- min(1 - 1/log10(S), 0.7)
+  
+  if(S > 2000)
+    threshold <- 0.7
+  
+  if(k_hat > threshold) {
+    
+    warning(
+      paste(
+        "Estimated Pareto k =",
+        round(k_hat, 3),
+        "suggests unstable importance sampling."
+      )
+    )
+    
+  }
+  
+  return(ws)
+  
 }
+
 
 
 # ELPPD tuple construction
@@ -175,7 +262,9 @@ tuple_function <- function(log_lik_mat,
     
     for(i in 1:n){
       
-      denominator[, i] <- psis_weights(denominator[, i])
+      denominator[, i] <- psis_weights(
+        denominator[, i]
+      )
     }
   }
   
