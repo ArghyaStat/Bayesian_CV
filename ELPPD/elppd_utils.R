@@ -17,36 +17,87 @@ truncate_weights <- function(w){
   pmin(w, tau)
 }
 
+# Generalized Pareto quantile function
 
-# Pareto smoothed importance sampling
+qgpd <- function(p, k, sigma){
+  
+  if(abs(k) < 1e-8){
+    
+    -sigma * log(1 - p)
+    
+  } else {
+    
+    sigma / k * ((1 - p)^(-k) - 1)
+  }
+}
 
-psis_weights <- function(w){
+# Pareto smoothed importance sampling weights
+
+psis_weights <- function(w,
+                         tail_frac = 0.2){
   
   S <- length(w)
   
-  # Raw log weights
+  # Number of tail samples
   
-  lw <- log(w)
+  M <- ceiling(tail_frac * S)
   
-  # PSIS fit
+  # Order statistics
   
-  psis_fit <- loo::psis(lw)
+  ord <- order(w)
   
-  # Pareto smoothed log weights
+  w_sorted <- w[ord]
   
-  lw_psis <- loo::weights(
-    psis_fit,
-    normalize = FALSE,
-    log = TRUE
-  )
+  # Threshold
   
-  w_psis <- exp(lw_psis)
+  threshold_idx <- S - M + 1
   
-  # Final stabilized weights:
-  # w_tilde = min(raw weight, psis weight)
+  threshold <- w_sorted[threshold_idx]
   
-  pmin(w, w_psis)
+  # Tail excesses
+  
+  tail_weights <- w_sorted[threshold_idx:S]
+  
+  excesses <- tail_weights - threshold
+  
+  # Fit generalized Pareto to excesses
+  
+  fit <- loo::gpdfit(excesses)
+  
+  k <- fit$k
+  sigma <- fit$sigma
+  
+  # Smoothed tail quantiles
+  
+  p <- ((1:M) - 0.5) / M
+  
+  smoothed_excess <- qgpd(p,
+                          k = k,
+                          sigma = sigma)
+  
+  smoothed_tail <- threshold + smoothed_excess
+  
+  # Replace tail weights
+  
+  w_smoothed <- w_sorted
+  
+  w_smoothed[threshold_idx:S] <- smoothed_tail
+  
+  # Optional stabilization:
+  # truncate at largest raw weight
+  
+  w_smoothed <- pmin(w_smoothed,
+                     max(w))
+  
+  # Return original ordering
+  
+  out <- numeric(S)
+  
+  out[ord] <- w_smoothed
+  
+  out
 }
+
 
 # ELPPD tuple construction
 
