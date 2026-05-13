@@ -4,12 +4,9 @@ library(MASS)
 library(doParallel)
 library(foreach)
 
-source("utils.R")
 source("proposals.R")
 source("sampler.R")
-source("tuples.R")
-source("weights.R")
-source("variance.R")
+source("elppd_components.R")
 
 
 
@@ -69,7 +66,7 @@ sim_data <- function(n,
 
 
 # ---------------------------------------------------------
-# Gaussian model functions
+# Gaussian likelihood
 # ---------------------------------------------------------
 
 log_like_gaussian <- function(theta,
@@ -80,13 +77,17 @@ log_like_gaussian <- function(theta,
   
   dnorm(
     y,
-    mu,
-    sqrt(sigma2),
+    mean = mu,
+    sd = sqrt(sigma2),
     log = TRUE
   )
 }
 
 
+
+# ---------------------------------------------------------
+# Gradient log-likelihood
+# ---------------------------------------------------------
 
 grad_log_like_gaussian <- function(theta,
                                    X,
@@ -101,19 +102,27 @@ grad_log_like_gaussian <- function(theta,
 
 
 
+# ---------------------------------------------------------
+# Gaussian prior
+# ---------------------------------------------------------
+
 log_prior_gaussian <- function(theta){
   
   sum(
     dnorm(
       theta,
-      0,
-      sqrt(tau2),
+      mean = 0,
+      sd = sqrt(tau2),
       log = TRUE
     )
   )
 }
 
 
+
+# ---------------------------------------------------------
+# Gradient prior
+# ---------------------------------------------------------
 
 grad_log_prior_gaussian <- function(theta){
   
@@ -133,7 +142,7 @@ registerDoParallel(cl)
 
 
 # ---------------------------------------------------------
-# Main loop
+# Main simulation loop
 # ---------------------------------------------------------
 
 results <- foreach(
@@ -156,12 +165,17 @@ results <- foreach(
   
   y <- dat$y
   
+  
+  
   # -------------------------------------------------------
   # Fold construction
   # -------------------------------------------------------
   
   fold_id <- sample(
-    rep(1:K, length.out = n)
+    rep(
+      seq_len(K),
+      length.out = n
+    )
   )
   
   folds <- split(
@@ -169,26 +183,48 @@ results <- foreach(
     fold_id
   )
   
-  fold_sizes <- sapply(
-    folds,
-    length
-  )
+  fold_sizes <- lengths(folds)
   
-  alpha_vec <- (n - fold_sizes) / n
   
-  alpha_obs <- numeric(n)
   
-  for(k in 1:K){
+  # -------------------------------------------------------
+  # Fold allocation map
+  # kappa(i)
+  # -------------------------------------------------------
+  
+  kappa <- integer(n)
+  
+  for(k in seq_len(K)){
     
-    alpha_obs[folds[[k]]] <-
-      alpha_vec[k]
+    kappa[folds[[k]]] <- k
   }
+  
+  
+  
+  # -------------------------------------------------------
+  # Fold-specific powers
+  # alpha_k
+  # -------------------------------------------------------
+  
+  alpha_fold <- (n - fold_sizes) / n
+  
+  
+  
+  # -------------------------------------------------------
+  # Scalar Bronze power
+  # -------------------------------------------------------
+  
+  alpha <- mean(alpha_fold)
+  
+  
   
   # -------------------------------------------------------
   # Initial value
   # -------------------------------------------------------
   
   x_init <- lm(y ~ X - 1)$coef
+  
+  
   
   # -------------------------------------------------------
   # Gelfand sampler
@@ -212,11 +248,11 @@ results <- foreach(
       grad_log_prior_gaussian
   )
   
+  
+  
   # -------------------------------------------------------
   # Bronze sampler
   # -------------------------------------------------------
-  
-  alpha_bar <- mean(alpha_vec)
   
   fit_b <- leapfrog_hmc(
     epsilon = 0.15,
@@ -228,7 +264,7 @@ results <- foreach(
     M = diag(p),
     X = X,
     y = y,
-    alpha = alpha_bar,
+    alpha = alpha,
     log_like = log_like_gaussian,
     log_prior = log_prior_gaussian,
     grad_log_like =
@@ -236,6 +272,8 @@ results <- foreach(
     grad_log_prior =
       grad_log_prior_gaussian
   )
+  
+  
   
   # -------------------------------------------------------
   # Zanella sampler
@@ -259,6 +297,8 @@ results <- foreach(
       grad_log_prior_gaussian
   )
   
+  
+  
   # -------------------------------------------------------
   # Extract samples
   # -------------------------------------------------------
@@ -268,6 +308,8 @@ results <- foreach(
   samples_b <- fit_b$samples
   
   samples_z <- fit_z$samples
+  
+  
   
   # -------------------------------------------------------
   # Log-likelihood matrices
@@ -285,6 +327,8 @@ results <- foreach(
     )
   )
   
+  
+  
   log_lik_b <- t(
     sapply(
       1:S,
@@ -296,6 +340,8 @@ results <- foreach(
         )
     )
   )
+  
+  
   
   log_lik_z <- t(
     sapply(
@@ -309,18 +355,33 @@ results <- foreach(
     )
   )
   
+  
+  
   # -------------------------------------------------------
   # Tuple construction
   # -------------------------------------------------------
   
-  tup_g <- tuple_g(log_lik_g)
-  
-  tup_b <- tuple_b(
-    log_lik_b,
-    alpha_obs
+  tup_g <- tuple_function(
+    log_lik_mat = log_lik_g,
+    method = "Gelfand"
   )
   
-  tup_z <- tuple_z(log_lik_z)
+  
+  
+  tup_b <- tuple_function(
+    log_lik_mat = log_lik_b,
+    method = "Bronze",
+    alpha = alpha
+  )
+  
+  
+  
+  tup_z <- tuple_function(
+    log_lik_mat = log_lik_z,
+    method = "Zanella"
+  )
+  
+  
   
   # -------------------------------------------------------
   # Asymptotic variance estimation
@@ -332,17 +393,23 @@ results <- foreach(
     S = S
   )
   
+  
+  
   out_b <- asymp.var.elppd(
     num = tup_b$numerator,
     den = tup_b$denominator,
     S = S
   )
   
+  
+  
   out_z <- asymp.var.elppd(
     num = tup_z$numerator,
     den = tup_z$denominator,
     S = S
   )
+  
+  
   
   # -------------------------------------------------------
   # Return
