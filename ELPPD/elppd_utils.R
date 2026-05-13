@@ -22,18 +22,30 @@ truncate_weights <- function(w){
 
 psis_weights <- function(w){
   
-  # log importance ratios
+  S <- length(w)
+  
+  # Raw log weights
   
   lw <- log(w)
   
   # PSIS fit
   
-  psis_obj <- loo::psis(lw)
+  psis_fit <- loo::psis(lw)
   
-  # smoothed weights
+  # Pareto smoothed log weights
   
-  as.vector(weights(psis_obj,
-                    normalize = FALSE))
+  lw_psis <- loo::weights(
+    psis_fit,
+    normalize = FALSE,
+    log = TRUE
+  )
+  
+  w_psis <- exp(lw_psis)
+  
+  # Final stabilized weights:
+  # w_tilde = min(raw weight, psis weight)
+  
+  pmin(w, w_psis)
 }
 
 # ELPPD tuple construction
