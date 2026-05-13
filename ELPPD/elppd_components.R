@@ -59,10 +59,9 @@ tuple_function <- function(log_lik_mat,
 
 truncate_weights <- function(w){
   
-  tau <- sqrt(length(w)) *
-    mean(w)
-  
+  tau <- sqrt(length(w)) * mean(w)
   pmin(w, tau)
+  
 }
 
 
