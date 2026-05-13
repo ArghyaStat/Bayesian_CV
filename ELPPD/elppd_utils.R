@@ -17,43 +17,41 @@ truncate_weights <- function(w){
   pmin(w, tau)
 }
 
-gpd_quantile <- function(p, k, sigma, u) {
+psis_weights <- function(log_ratios,
+                         tail_frac = 0.2) {
   
-  if(abs(k) < 1e-8) {
-    
-    return(
-      u - sigma * log(1 - p)
-    )
-    
-  } else {
-    
-    return(
-      u + (sigma / k) * ((1 - p)^(-k) - 1)
-    )
-    
-  }
+  ############################################
+  # Remove non-finite values
+  ############################################
   
-}
-
-
-psis_weights <- function(log_ratios) {
+  keep <- is.finite(log_ratios)
+  
+  if(!all(keep))
+    stop("Non-finite log ratios detected.")
+  
+  ############################################
+  # Number of samples
+  ############################################
   
   S <- length(log_ratios)
+  
+  if(S < 10)
+    stop("Need at least 10 samples.")
   
   ############################################
   # Stabilize
   ############################################
   
-  log_ratios <- log_ratios - max(log_ratios)
+  lw <- log_ratios - max(log_ratios)
   
   ############################################
   # Raw importance ratios
   ############################################
   
-  rs <- exp(log_ratios)
+  rs <- exp(lw)
   
   ############################################
-  # Order statistics
+  # Sort ratios
   ############################################
   
   ord <- order(rs)
@@ -64,13 +62,13 @@ psis_weights <- function(log_ratios) {
   # Tail size
   ############################################
   
-  M <- floor(min(0.2 * S, 3 * sqrt(S)))
+  M <- floor(min(tail_frac * S,
+                 3 * sqrt(S)))
   
   M <- max(M, 5)
   
   ############################################
-  # Threshold:
-  # T = r_{S-M+1:S}
+  # Tail threshold
   ############################################
   
   threshold_index <- S - M + 1
@@ -78,7 +76,7 @@ psis_weights <- function(log_ratios) {
   u_hat <- rs_sorted[threshold_index]
   
   ############################################
-  # Tail excesses
+  # Excesses above threshold
   ############################################
   
   excess <- rs_sorted[threshold_index:S] - u_hat
@@ -91,13 +89,13 @@ psis_weights <- function(log_ratios) {
   
   m2 <- mean(excess^2)
   
-  denom <- m2 - m1^2
+  denom <- m2 - 2 * m1^2
   
   if(denom <= 0 || !is.finite(denom)) {
     
     k_hat <- 0
     
-    sigma_hat <- m1
+    sigma_hat <- max(m1, 1e-8)
     
   } else {
     
@@ -108,41 +106,52 @@ psis_weights <- function(log_ratios) {
   }
   
   ############################################
-  # Numerical safeguards
+  # Safeguards
   ############################################
   
   if(!is.finite(k_hat))
     k_hat <- 0
   
-  if(!is.finite(sigma_hat) || sigma_hat <= 0)
-    sigma_hat <- m1
+  if(!is.finite(sigma_hat) ||
+     sigma_hat <= 0)
+    sigma_hat <- max(m1, 1e-8)
   
   ############################################
-  # Pareto smoothing of upper tail
+  # Pareto smoothing
   ############################################
   
   ws_sorted <- rs_sorted
   
+  p_grid <- ((1:M) - 0.5) / M
+  
   for(z in 1:M) {
     
-    p <- (z - 0.5) / M
-    
-    smoothed <- gpd_quantile(
-      p = p,
-      k = k_hat,
-      sigma = sigma_hat,
-      u = u_hat
-    )
+    p <- p_grid[z]
     
     ##########################################
-    # Truncate at maximum raw ratio
+    # Smoothed quantile
+    ##########################################
+    
+    if(abs(k_hat) < 1e-8) {
+      
+      smoothed <- u_hat -
+        sigma_hat * log(1 - p)
+      
+    } else {
+      
+      smoothed <- u_hat +
+        (sigma_hat / k_hat) *
+        ((1 - p)^(-k_hat) - 1)
+    }
+    
+    ##########################################
+    # Replace tail
     ##########################################
     
     ws_sorted[threshold_index + z - 1] <- min(
       smoothed,
       max(rs)
     )
-    
   }
   
   ############################################
@@ -154,16 +163,25 @@ psis_weights <- function(log_ratios) {
   ws[ord] <- ws_sorted
   
   ############################################
-  # Self-normalized IS weights
+  # Truncation
+  ############################################
+  
+  tau <- sqrt(S) * mean(ws)
+  
+  ws <- pmin(ws, tau)
+  
+  ############################################
+  # Normalize
   ############################################
   
   ws <- ws / sum(ws)
   
   ############################################
-  # Pareto-k diagnostic
+  # Pareto diagnostic warning
   ############################################
   
-  threshold <- min(1 - 1/log10(S), 0.7)
+  threshold <- min(1 - 1/log10(S),
+                   0.7)
   
   if(S > 2000)
     threshold <- 0.7
@@ -177,13 +195,10 @@ psis_weights <- function(log_ratios) {
         "suggests unstable importance sampling."
       )
     )
-    
   }
   
   return(ws)
-  
 }
-
 
 
 # ELPPD tuple construction
@@ -263,7 +278,7 @@ tuple_function <- function(log_lik_mat,
     for(i in 1:n){
       
       denominator[, i] <- psis_weights(
-        denominator[, i]
+        log(denominator[, i])
       )
     }
   }
