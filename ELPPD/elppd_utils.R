@@ -147,20 +147,11 @@ bm.quad.form <- function(Y, v,
 # Asymptotic variance estimator
 
 asymp.var.elppd <- function(num, den, S, b = NULL){
-  
-  if(is.null(num)){
-    
-    v <- -1 / colMeans(den)
-    Y <- den
-    mu <- 1 / colMeans(den)
-    
-  } else {
     
     v <- c(1 / colMeans(num), -1 / colMeans(den))
     Y <- cbind(num, den)
     mu <- colMeans(num) / colMeans(den)
     
-  }
   
   qf <- bm.quad.form(Y = Y, v = v, b = b)
   
