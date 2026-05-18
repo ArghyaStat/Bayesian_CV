@@ -206,9 +206,9 @@ results <- foreach(r = 1:reps,
                      log_lik_z <- t(sapply(1:S, function(s) 
                        log_like(samples_z[s, ], X, y)))
                      
-                     # =========================================================
+                     
                      # Gelfand
-                     # =========================================================
+                  
                      
                      tup_g_is <- tuple_function(
                        log_lik_mat = log_lik_g,
@@ -275,7 +275,6 @@ results <- foreach(r = 1:reps,
                      
                     
                      # Asymptotic variance estimation
-                     # =========================================================
                      
                      out_g_is <- asymp.var.elppd(
                        num = tup_g_is$numerator,
@@ -333,13 +332,7 @@ results <- foreach(r = 1:reps,
                        S = S
                      )
                      
-                     c(
-                       
-                       # -------------------------------------------------------
-                       # Gelfand
-                       # -------------------------------------------------------
-                       
-                       elppd_g_is   = out_g_is$elppd,
+                     c(elppd_g_is   = out_g_is$elppd,
                        var_g_is     = out_g_is$asymp_var,
                        
                        elppd_g_tis  = out_g_tis$elppd,
@@ -349,11 +342,6 @@ results <- foreach(r = 1:reps,
                        var_g_psis   = out_g_psis$asymp_var,
                        
                        acc_g = fit_g$acc,
-                       
-                       
-                       # -------------------------------------------------------
-                       # Bronze
-                       # -------------------------------------------------------
                        
                        elppd_b_is   = out_b_is$elppd,
                        var_b_is     = out_b_is$asymp_var,
@@ -365,11 +353,6 @@ results <- foreach(r = 1:reps,
                        var_b_psis   = out_b_psis$asymp_var,
                        
                        acc_b = fit_b$acc,
-                       
-                       
-                       # -------------------------------------------------------
-                       # Zanella
-                       # -------------------------------------------------------
                        
                        elppd_z_is   = out_z_is$elppd,
                        var_z_is     = out_z_is$asymp_var,
