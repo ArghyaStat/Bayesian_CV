@@ -20,7 +20,7 @@ source("elppd_utils.R")
 n <- 50
 d <- 10
 K <- 5
-S <- 1e4
+S <- 1e5
 
 # Hyperparameters
 
