@@ -1,0 +1,372 @@
+rm(list = ls())
+
+mydir <- this.path::here()
+setwd(mydir)
+
+
+library(MASS)
+library(doParallel)
+library(foreach)
+
+source("proposals.R")
+source("sampler.R")
+source("elppd_utils.R")
+
+# Simulation design
+
+n <- 50
+p <- 10
+K <- 50
+S <- 1e3
+
+# Hyperparameters
+
+tau2 <- 1e2
+
+set.seed(1709)
+
+
+# Simulate Logistic Linear Model
+
+sim_data <- function(n, p){
+  
+  X <- matrix(rnorm(n * p), n, p)
+  
+  beta_true <- rnorm(p)
+  
+  eta <- X %*% beta_true
+  
+  prob <- plogis(eta)
+  
+  y <- rbinom(n, size = 1, prob = prob)
+  
+  list(X = X,
+       y = y,
+       beta_true = beta_true)
+}
+
+dat <- sim_data(n, p)
+
+X <- dat$X
+y <- dat$y
+
+reps <- 100
+n.cores <- 5
+
+
+log_like <- function(theta, X, y){
+  
+  eta <- X %*% theta
+  
+  dbinom(y,
+         size = 1,
+         prob = plogis(eta),
+         log = TRUE)
+}
+
+
+grad_log_like <- function(theta, X, y){
+  
+  eta <- X %*% theta
+  
+  prob <- plogis(eta)
+  
+  r <- y - prob
+  
+  X * as.vector(r)
+}
+
+
+log_prior <- function(theta){
+  
+  sum(dnorm(theta,
+            mean = 0,
+            sd = sqrt(tau2),
+            log = TRUE))
+}
+
+
+grad_log_prior <- function(theta){
+  
+  -theta / tau2
+}
+
+# Parallel for each loop
+
+cl <- makeCluster(n.cores)
+
+registerDoParallel(cl)
+
+# Main simulation loop
+
+results <- foreach(r = 1:reps, 
+                   .combine = rbind) %dopar% {
+                     
+                     
+                     # Fold construction
+                     
+                     fold_id <- sample(rep(seq_len(K), length.out = n))
+                     
+                     folds <- split(seq_len(n), fold_id)
+                     
+                     fold_sizes <- lengths(folds)
+                     
+                     # Fold allocation map kappa(i)
+                     
+                     kappa <- integer(n)
+                     
+                     for(k in seq_len(K)){
+                       
+                       kappa[folds[[k]]] <- k
+                     }
+                     
+                     
+                     # Fold-specific powers alpha_k
+                     
+                     alpha_fold <- (n - fold_sizes) / n
+                     
+                     # Scalar Bronze power
+                     alpha <- mean(alpha_fold)
+                     
+                     x_init <- glm(y ~ X - 1,
+                                   family = "binomial")$coef
+                     
+                     # Gelfand sampler
+                     
+                     fit_g <- leapfrog_hmc(
+                       epsilon = 0.60,
+                       L = 10,
+                       niters = S,
+                       U = U_g,
+                       grad_U = grad_g,
+                       x_init = x_init,
+                       M = diag(p),
+                       X = X,
+                       y = y,
+                       log_like = log_like,
+                       log_prior = log_prior,
+                       grad_log_like = grad_log_like,
+                       grad_log_prior = grad_log_prior)
+                     
+                     
+                     # Bronze sampler
+                     
+                     fit_b <- leapfrog_hmc(
+                       epsilon = 0.60,
+                       L = 10,
+                       niters = S,
+                       U = U_b,
+                       grad_U = grad_b,
+                       x_init = x_init,
+                       M = diag(p),
+                       X = X,
+                       y = y,
+                       alpha = alpha,
+                       log_like = log_like,
+                       log_prior = log_prior,
+                       grad_log_like = grad_log_like,
+                       grad_log_prior = grad_log_prior
+                     )
+                     
+                     
+                     # Zanella sampler
+                     
+                     fit_z <- leapfrog_hmc(
+                       epsilon = 0.85,
+                       L = 10,
+                       niters = S,
+                       U = U_z,
+                       grad_U = grad_z,
+                       x_init = x_init,
+                       M = diag(p),
+                       X = X,
+                       y = y,
+                       log_like = log_like,
+                       log_prior = log_prior,
+                       grad_log_like = grad_log_like,
+                       grad_log_prior = grad_log_prior)
+                     
+                     samples_g <- fit_g$samples
+                     samples_b <- fit_b$samples
+                     samples_z <- fit_z$samples
+                     
+                     # Log-likelihood matrices of dimension S \times n
+                     
+                     log_lik_g <- t(sapply(1:S, function(s) 
+                       log_like(samples_g[s, ], X, y)))
+                     
+                     
+                     log_lik_b <- t(sapply(1:S, function(s) 
+                       log_like(samples_b[s, ], X, y)))
+                     
+                     
+                     log_lik_z <- t(sapply(1:S, function(s) 
+                       log_like(samples_z[s, ], X, y)))
+                     
+                     # =========================================================
+                     # Gelfand
+                     # =========================================================
+                     
+                     tup_g_is <- tuple_function(
+                       log_lik_mat = log_lik_g,
+                       method = "Gelfand",
+                       weight_type = "is"
+                     )
+                     
+                     tup_g_tis <- tuple_function(
+                       log_lik_mat = log_lik_g,
+                       method = "Gelfand",
+                       weight_type = "tis"
+                     )
+                     
+                     tup_g_psis <- tuple_function(
+                       log_lik_mat = log_lik_g,
+                       method = "Gelfand",
+                       weight_type = "psis"
+                     )
+                     
+                     
+                     # Bronze
+                     
+                     tup_b_is <- tuple_function(
+                       log_lik_mat = log_lik_b,
+                       method = "Bronze",
+                       weight_type = "is",
+                       alpha = alpha
+                     )
+                     
+                     tup_b_tis <- tuple_function(
+                       log_lik_mat = log_lik_b,
+                       method = "Bronze",
+                       weight_type = "tis",
+                       alpha = alpha
+                     )
+                     
+                     tup_b_psis <- tuple_function(
+                       log_lik_mat = log_lik_b,
+                       method = "Bronze",
+                       weight_type = "psis",
+                       alpha = alpha
+                     )
+                     
+                     
+                     # Zanella
+                     
+                     tup_z_is <- tuple_function(
+                       log_lik_mat = log_lik_z,
+                       method = "Zanella",
+                       weight_type = "is"
+                     )
+                     
+                     tup_z_tis <- tuple_function(
+                       log_lik_mat = log_lik_z,
+                       method = "Zanella",
+                       weight_type = "tis"
+                     )
+                     
+                     tup_z_psis <- tuple_function(
+                       log_lik_mat = log_lik_z,
+                       method = "Zanella",
+                       weight_type = "psis"
+                     )
+                     
+                     
+                     # Asymptotic variance estimation
+                     
+                     out_g_is <- asymp.var.elppd(
+                       num = tup_g_is$numerator,
+                       den = tup_g_is$denominator,
+                       S = S
+                     )
+                     
+                     out_g_tis <- asymp.var.elppd(
+                       num = tup_g_tis$numerator,
+                       den = tup_g_tis$denominator,
+                       S = S
+                     )
+                     
+                     out_g_psis <- asymp.var.elppd(
+                       num = tup_g_psis$numerator,
+                       den = tup_g_psis$denominator,
+                       S = S
+                     )
+                     
+                     
+                     out_b_is <- asymp.var.elppd(
+                       num = tup_b_is$numerator,
+                       den = tup_b_is$denominator,
+                       S = S
+                     )
+                     
+                     out_b_tis <- asymp.var.elppd(
+                       num = tup_b_tis$numerator,
+                       den = tup_b_tis$denominator,
+                       S = S
+                     )
+                     
+                     out_b_psis <- asymp.var.elppd(
+                       num = tup_b_psis$numerator,
+                       den = tup_b_psis$denominator,
+                       S = S
+                     )
+                     
+                     
+                     out_z_is <- asymp.var.elppd(
+                       num = tup_z_is$numerator,
+                       den = tup_z_is$denominator,
+                       S = S
+                     )
+                     
+                     out_z_tis <- asymp.var.elppd(
+                       num = tup_z_tis$numerator,
+                       den = tup_z_tis$denominator,
+                       S = S
+                     )
+                     
+                     out_z_psis <- asymp.var.elppd(
+                       num = tup_z_psis$numerator,
+                       den = tup_z_psis$denominator,
+                       S = S
+                     )
+                     
+                     c(elppd_g_is   = out_g_is$elppd,
+                       var_g_is     = out_g_is$asymp_var,
+                       
+                       elppd_g_tis  = out_g_tis$elppd,
+                       var_g_tis    = out_g_tis$asymp_var,
+                       
+                       elppd_g_psis = out_g_psis$elppd,
+                       var_g_psis   = out_g_psis$asymp_var,
+                       
+                       acc_g = fit_g$acc,
+                       
+                       elppd_b_is   = out_b_is$elppd,
+                       var_b_is     = out_b_is$asymp_var,
+                       
+                       elppd_b_tis  = out_b_tis$elppd,
+                       var_b_tis    = out_b_tis$asymp_var,
+                       
+                       elppd_b_psis = out_b_psis$elppd,
+                       var_b_psis   = out_b_psis$asymp_var,
+                       
+                       acc_b = fit_b$acc,
+                       
+                       elppd_z_is   = out_z_is$elppd,
+                       var_z_is     = out_z_is$asymp_var,
+                       
+                       elppd_z_tis  = out_z_tis$elppd,
+                       var_z_tis    = out_z_tis$asymp_var,
+                       
+                       elppd_z_psis = out_z_psis$elppd,
+                       var_z_psis   = out_z_psis$asymp_var,
+                       
+                       acc_z = fit_z$acc
+                     )
+                   }
+
+stopCluster(cl)
+
+results <- as.data.frame(results)
+
+save(results, file = paste0(K,
+                           "_fold_elppd_logistic.RData"))

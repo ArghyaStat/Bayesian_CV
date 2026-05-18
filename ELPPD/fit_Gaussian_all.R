@@ -18,7 +18,7 @@ source("elppd_utils.R")
 
 n <- 50
 p <- 10
-K <- 5
+K <- 50
 S <- 1e3
 
 # Hyperparameters
@@ -389,4 +389,4 @@ stopCluster(cl)
 results <- as.data.frame(results)
 
 save(results,file = paste0(K,
-                           "_fold_elppd_results_all.RData"))
+                           "_fold_elppd_Gaussian.RData"))
