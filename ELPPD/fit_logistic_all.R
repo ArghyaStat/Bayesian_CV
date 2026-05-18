@@ -15,9 +15,9 @@ source("elppd_utils.R")
 # Simulation design
 
 n <- 50
-p <- 10
-K <- 50
-S <- 1e3
+d <- 10
+K <- 5
+S <- 5e4
 
 # Hyperparameters
 
@@ -28,11 +28,11 @@ set.seed(1709)
 
 # Simulate Logistic Linear Model
 
-sim_data <- function(n, p){
+sim_data <- function(n, d){
   
-  X <- matrix(rnorm(n * p), n, p)
+  X <- matrix(rnorm(n * d), n, d)
   
-  beta_true <- rnorm(p)
+  beta_true <- rnorm(d)
   
   eta <- X %*% beta_true
   
@@ -45,23 +45,20 @@ sim_data <- function(n, p){
        beta_true = beta_true)
 }
 
-dat <- sim_data(n, p)
+dat <- sim_data(n, d)
 
 X <- dat$X
 y <- dat$y
 
 reps <- 100
-n.cores <- 5
+n.cores <- 50
 
 
 log_like <- function(theta, X, y){
   
-  eta <- X %*% theta
+  eta <- as.vector(X %*% theta)
   
-  dbinom(y,
-         size = 1,
-         prob = plogis(eta),
-         log = TRUE)
+  y * eta - log1p(exp(eta))
 }
 
 
@@ -134,13 +131,13 @@ results <- foreach(r = 1:reps,
                      # Gelfand sampler
                      
                      fit_g <- leapfrog_hmc(
-                       epsilon = 0.60,
+                       epsilon = 0.53,
                        L = 10,
                        niters = S,
                        U = U_g,
                        grad_U = grad_g,
                        x_init = x_init,
-                       M = diag(p),
+                       M = diag(d),
                        X = X,
                        y = y,
                        log_like = log_like,
@@ -152,13 +149,13 @@ results <- foreach(r = 1:reps,
                      # Bronze sampler
                      
                      fit_b <- leapfrog_hmc(
-                       epsilon = 0.60,
+                       epsilon = 0.55,
                        L = 10,
                        niters = S,
                        U = U_b,
                        grad_U = grad_b,
                        x_init = x_init,
-                       M = diag(p),
+                       M = diag(d),
                        X = X,
                        y = y,
                        alpha = alpha,
@@ -172,13 +169,13 @@ results <- foreach(r = 1:reps,
                      # Zanella sampler
                      
                      fit_z <- leapfrog_hmc(
-                       epsilon = 0.85,
+                       epsilon = 0.55,
                        L = 10,
                        niters = S,
                        U = U_z,
                        grad_U = grad_z,
                        x_init = x_init,
-                       M = diag(p),
+                       M = diag(d),
                        X = X,
                        y = y,
                        log_like = log_like,
@@ -203,9 +200,9 @@ results <- foreach(r = 1:reps,
                      log_lik_z <- t(sapply(1:S, function(s) 
                        log_like(samples_z[s, ], X, y)))
                      
-                     # =========================================================
+                     
                      # Gelfand
-                     # =========================================================
+                
                      
                      tup_g_is <- tuple_function(
                        log_lik_mat = log_lik_g,
