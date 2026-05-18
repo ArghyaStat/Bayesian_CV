@@ -90,7 +90,7 @@ tuple_function <- function(log_lik_mat,
     
     if(weight_type == "psis"){
       
-      psis_details <- loo:psis(log(w_mat[, i]), r_eff = 1)
+      psis_details <- loo::psis(log(w_mat[, i]), r_eff = 1)
       
       w <- weights(psis_details, log=FALSE, normalize = FALSE)
     }

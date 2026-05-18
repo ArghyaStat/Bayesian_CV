@@ -7,6 +7,7 @@ setwd(mydir)
 library(MASS)
 library(doParallel)
 library(foreach)
+library(loo)
 
 source("proposals.R")
 source("sampler.R")
@@ -19,7 +20,7 @@ source("elppd_utils.R")
 n <- 50
 d <- 10
 K <- 5
-S <- 1e6
+S <- 1e4
 
 # Hyperparameters
 
