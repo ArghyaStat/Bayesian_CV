@@ -17,9 +17,9 @@ source("elppd_utils.R")
 
 
 n <- 50
-p <- 10
-K <- 50
-S <- 1e3
+d <- 10
+K <- 5
+S <- 5e4
 
 # Hyperparameters
 
@@ -31,11 +31,11 @@ set.seed(1709)
 
 # Simulate Gaussian linear model
 
-sim_data <- function(n, p){
+sim_data <- function(n, d){
   
-  X <- matrix(rnorm(n*p), n, p)
+  X <- matrix(rnorm(n*d), n, d)
   
-  beta_true <- rnorm(p)
+  beta_true <- rnorm(d)
   
   y <- X %*% beta_true + rnorm(n, sd = sqrt(sigma2))
   
@@ -44,13 +44,13 @@ sim_data <- function(n, p){
        beta_true = beta_true)
 }
 
-dat <- sim_data(n, p)
+dat <- sim_data(n, d)
 
 X <- dat$X
 y <- dat$y
 
 reps <- 100
-n.cores <- 5
+n.cores <- 50
 
 # Gaussian likelihood
 
@@ -143,7 +143,7 @@ results <- foreach(r = 1:reps,
                        U = U_g,
                        grad_U = grad_g,
                        x_init = x_init,
-                       M = diag(p),
+                       M = diag(d),
                        X = X,
                        y = y,
                        log_like = log_like,
@@ -161,7 +161,7 @@ results <- foreach(r = 1:reps,
                        U = U_b,
                        grad_U = grad_b,
                        x_init = x_init,
-                       M = diag(p),
+                       M = diag(d),
                        X = X,
                        y = y,
                        alpha = alpha,
@@ -181,7 +181,7 @@ results <- foreach(r = 1:reps,
                        U = U_z,
                        grad_U = grad_z,
                        x_init = x_init,
-                       M = diag(p),
+                       M = diag(d),
                        X = X,
                        y = y,
                        log_like = log_like,
