@@ -4,7 +4,7 @@ rm(list = ls())
 mydir <- this.path::here()
 setwd(mydir)
 
-load("elppd_exact_logistic.RData")
+load("elppd_exact_losgistic.RData")
 
 #===========================================================
 # Fold settings
