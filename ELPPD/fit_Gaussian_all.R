@@ -107,12 +107,15 @@ results <- foreach(r = 1:reps,
                    .combine = rbind) %dopar% {
                      
                      
-                     # ---------------------------------------------------------
-                     # Fold construction
-                     # ---------------------------------------------------------
+                     fold_id <- sample(
+                       rep(seq_len(K),
+                           length.out = n)
+                     )
+                    
                      
-                     kappa <- sample(rep(seq_len(K),
-                                         length.out = n))
+                     kappa <- fold_id
+                     
+                     # Fold sets D_k
                      
                      folds <- split(seq_len(n), kappa)
                      
