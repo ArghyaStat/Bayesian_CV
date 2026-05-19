@@ -5,8 +5,8 @@ setwd(mydir)
 
 
 library(MASS)
-library(doParallel)
 library(foreach)
+library(doParallel)
 library(loo)
 
 source("proposals.R")
@@ -208,32 +208,39 @@ results <- foreach(r = 1:reps,
                        log_like(samples_z[s, ], X, y)))
                      
                      
+                     # ---------------------------------------------------------
                      # Gelfand
-                  
+                     # ---------------------------------------------------------
                      
                      tup_g_is <- tuple_function(
                        log_lik_mat = log_lik_g,
+                       fold_id = kappa,
                        method = "Gelfand",
                        weight_type = "is"
                      )
                      
                      tup_g_tis <- tuple_function(
                        log_lik_mat = log_lik_g,
+                       fold_id = kappa,
                        method = "Gelfand",
                        weight_type = "tis"
                      )
                      
                      tup_g_psis <- tuple_function(
                        log_lik_mat = log_lik_g,
+                       fold_id = kappa,
                        method = "Gelfand",
                        weight_type = "psis"
                      )
                      
                      
+                     # ---------------------------------------------------------
                      # Bronze
+                     # ---------------------------------------------------------
                      
                      tup_b_is <- tuple_function(
                        log_lik_mat = log_lik_b,
+                       fold_id = kappa,
                        method = "Bronze",
                        weight_type = "is",
                        alpha = alpha
@@ -241,6 +248,7 @@ results <- foreach(r = 1:reps,
                      
                      tup_b_tis <- tuple_function(
                        log_lik_mat = log_lik_b,
+                       fold_id = kappa,
                        method = "Bronze",
                        weight_type = "tis",
                        alpha = alpha
@@ -248,28 +256,34 @@ results <- foreach(r = 1:reps,
                      
                      tup_b_psis <- tuple_function(
                        log_lik_mat = log_lik_b,
+                       fold_id = kappa,
                        method = "Bronze",
                        weight_type = "psis",
                        alpha = alpha
                      )
                      
-                
+                     
+                     # ---------------------------------------------------------
                      # Zanella
+                     # ---------------------------------------------------------
                      
                      tup_z_is <- tuple_function(
                        log_lik_mat = log_lik_z,
+                       fold_id = kappa,
                        method = "Zanella",
                        weight_type = "is"
                      )
                      
                      tup_z_tis <- tuple_function(
                        log_lik_mat = log_lik_z,
+                       fold_id = kappa,
                        method = "Zanella",
                        weight_type = "tis"
                      )
                      
                      tup_z_psis <- tuple_function(
                        log_lik_mat = log_lik_z,
+                       fold_id = kappa,
                        method = "Zanella",
                        weight_type = "psis"
                      )

@@ -17,88 +17,142 @@ truncate_weights <- function(w){
   pmin(w, tau)
 }
 
-
 tuple_function <- function(log_lik_mat,
+                           fold_id,
                            method,
                            weight_type = "is",
                            alpha = NULL){
   
-  method <- match.arg(method, c("Gelfand",
-                                "Bronze",
-                                "Zanella"))
+  method <- match.arg(method,
+                      c("Gelfand",
+                        "Bronze",
+                        "Zanella"))
   
-  weight_type <- match.arg(weight_type, 
+  weight_type <- match.arg(weight_type,
                            c("is", "tis", "psis"))
   
   S <- nrow(log_lik_mat)
   n <- ncol(log_lik_mat)
   
+  if(is.null(fold_id)){
+    stop("fold_id must be supplied.")
+  }
+  
+  fold_levels <- sort(unique(fold_id))
+  K <- length(fold_levels)
+  
+  # ---------------------------------------------------------
+  # Fold-wise log likelihoods
+  # S x K matrix
+  # ---------------------------------------------------------
+  
+  fold_loglik <- matrix(0, S, K)
+  
+  for(k in seq_len(K)){
+    
+    idx <- which(fold_id == fold_levels[k])
+    
+    fold_loglik[, k] <-
+      rowSums(log_lik_mat[, idx, drop = FALSE])
+  }
+  
+  total_loglik <- rowSums(log_lik_mat)
+  
+  # ---------------------------------------------------------
   # Construct raw weights
+  # ---------------------------------------------------------
   
   w_mat <- matrix(0, S, n)
   
+  # ---------------------------------------------------------
   # Gelfand
-
+  # ---------------------------------------------------------
+  
   if(method == "Gelfand"){
     
-    w_mat <- exp(-log_lik_mat)
-  }
-  
-  # Bronze
-
-  if(method == "Bronze"){
-    
-    if(is.null(alpha)){stop("alpha must be supplied for Bronze.")}
-    
-    w_mat <- exp(-alpha * log_lik_mat)
-  }
-  
-  # Zanella
-  
-  if(method == "Zanella"){
-    
-    log_inv <- -log_lik_mat
-    
-    log_norm <- apply(log_inv, 1, log_sum_exp)
-    
-    for(i in 1:n){
+    for(i in seq_len(n)){
       
-      w_mat[, i] <- exp(log_inv[, i] - log_norm)
+      kappa_i <- match(fold_id[i], fold_levels)
+      
+      w_mat[, i] <-
+        exp(-fold_loglik[, kappa_i])
     }
   }
   
+  # ---------------------------------------------------------
+  # Bronze
+  # ---------------------------------------------------------
   
-  for(i in 1:n){
+  if(method == "Bronze"){
     
-
-    # Ordinary IS
+    if(is.null(alpha)){
+      stop("alpha must be supplied for Bronze.")
+    }
+    
+    for(i in seq_len(n)){
+      
+      kappa_i <- match(fold_id[i], fold_levels)
+      
+      log_test <- fold_loglik[, kappa_i]
+      
+      log_train <- total_loglik - log_test
+      
+      log_w <-
+        (1 - alpha) * log_train -
+        alpha * log_test
+      
+      w_mat[, i] <- exp(log_w)
+    }
+  }
+  
+  # ---------------------------------------------------------
+  # Zanella
+  # ---------------------------------------------------------
+  
+  if(method == "Zanella"){
+    
+    log_inv_fold <- -fold_loglik
+    
+    log_norm <- apply(log_inv_fold, 1, log_sum_exp)
+    
+    for(i in seq_len(n)){
+      
+      kappa_i <- match(fold_id[i], fold_levels)
+      
+      w_mat[, i] <-
+        exp(log_inv_fold[, kappa_i] - log_norm)
+    }
+  }
+  
+  # ---------------------------------------------------------
+  # IS / TIS / PSIS
+  # ---------------------------------------------------------
+  
+  for(i in seq_len(n)){
     
     if(weight_type == "is"){
       
       w <- w_mat[, i]
     }
     
-    
-    # Truncated IS
-    
     if(weight_type == "tis"){
       
       w <- truncate_weights(w_mat[, i])
     }
     
-    # PSIS
-    
     if(weight_type == "psis"){
       
-      psis_details <- loo::psis(log(w_mat[, i]), r_eff = 1)
+      psis_details <-
+        loo::psis(log(w_mat[, i]),
+                  r_eff = 1)
       
-      w <- weights(psis_details, log=FALSE, normalize = FALSE)
+      w <- weights(psis_details,
+                   log = FALSE,
+                   normalize = FALSE)
     }
     
     w_mat[, i] <- w
   }
-  
-  # tuple construction
   
   numerator <- exp(log_lik_mat) * w_mat
   denominator <- w_mat
@@ -106,6 +160,7 @@ tuple_function <- function(log_lik_mat,
   list(numerator = numerator,
        denominator = denominator)
 }
+
 
 # Batch means quadratic form t(v) %*% Omega %*% v
 
@@ -157,3 +212,92 @@ asymp.var.elppd <- function(num, den, S, b = NULL){
   
   list(elppd = sum(log(mu)), asymp_var = qf / S)
 }
+
+# tuple_function <- function(log_lik_mat,
+#                            method,
+#                            weight_type = "is",
+#                            alpha = NULL){
+#   
+#   method <- match.arg(method, c("Gelfand",
+#                                 "Bronze",
+#                                 "Zanella"))
+#   
+#   weight_type <- match.arg(weight_type, 
+#                            c("is", "tis", "psis"))
+#   
+#   S <- nrow(log_lik_mat)
+#   n <- ncol(log_lik_mat)
+#   
+#   # Construct raw weights
+#   
+#   w_mat <- matrix(0, S, n)
+#   
+#   # Gelfand
+#   
+#   if(method == "Gelfand"){
+#     
+#     w_mat <- exp(-log_lik_mat)
+#   }
+#   
+#   # Bronze
+#   
+#   if(method == "Bronze"){
+#     
+#     if(is.null(alpha)){stop("alpha must be supplied for Bronze.")}
+#     
+#     w_mat <- exp(-alpha * log_lik_mat)
+#   }
+#   
+#   # Zanella
+#   
+#   if(method == "Zanella"){
+#     
+#     log_inv <- -log_lik_mat
+#     
+#     log_norm <- apply(log_inv, 1, log_sum_exp)
+#     
+#     for(i in 1:n){
+#       
+#       w_mat[, i] <- exp(log_inv[, i] - log_norm)
+#     }
+#   }
+#   
+#   
+#   for(i in 1:n){
+#     
+#     
+#     # Ordinary IS
+#     
+#     if(weight_type == "is"){
+#       
+#       w <- w_mat[, i]
+#     }
+#     
+#     
+#     # Truncated IS
+#     
+#     if(weight_type == "tis"){
+#       
+#       w <- truncate_weights(w_mat[, i])
+#     }
+#     
+#     # PSIS
+#     
+#     if(weight_type == "psis"){
+#       
+#       psis_details <- loo::psis(log(w_mat[, i]), r_eff = 1)
+#       
+#       w <- weights(psis_details, log=FALSE, normalize = FALSE)
+#     }
+#     
+#     w_mat[, i] <- w
+#   }
+#   
+#   # tuple construction
+#   
+#   numerator <- exp(log_lik_mat) * w_mat
+#   denominator <- w_mat
+#   
+#   list(numerator = numerator,
+#        denominator = denominator)
+# }
