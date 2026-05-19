@@ -107,22 +107,16 @@ results <- foreach(r = 1:reps,
                    .combine = rbind) %dopar% {
                      
                      
+                     # ---------------------------------------------------------
                      # Fold construction
+                     # ---------------------------------------------------------
                      
-                     fold_id <- sample(rep(seq_len(K), length.out = n))
+                     kappa <- sample(rep(seq_len(K),
+                                         length.out = n))
                      
-                     folds <- split(seq_len(n), fold_id)
+                     folds <- split(seq_len(n), kappa)
                      
                      fold_sizes <- lengths(folds)
-                     
-                     # Fold allocation map kappa(i)
-                     
-                     kappa <- integer(n)
-                     
-                     for(k in seq_len(K)){
-                       
-                       kappa[folds[[k]]] <- k
-                     }
                      
                      
                      # Fold-specific powers alpha_k

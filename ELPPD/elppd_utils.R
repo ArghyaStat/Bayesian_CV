@@ -42,6 +42,12 @@ tuple_function <- function(log_lik_mat,
   K <- length(fold_levels)
   
   # ---------------------------------------------------------
+  # kappa(i) vector
+  # ---------------------------------------------------------
+  
+  kappa_index <- match(fold_id, fold_levels)
+  
+  # ---------------------------------------------------------
   # Fold-wise log likelihoods
   # S x K matrix
   # ---------------------------------------------------------
@@ -50,7 +56,7 @@ tuple_function <- function(log_lik_mat,
   
   for(k in seq_len(K)){
     
-    idx <- which(fold_id == fold_levels[k])
+    idx <- which(kappa_index == k)
     
     fold_loglik[, k] <-
       rowSums(log_lik_mat[, idx, drop = FALSE])
@@ -72,10 +78,8 @@ tuple_function <- function(log_lik_mat,
     
     for(i in seq_len(n)){
       
-      kappa_i <- match(fold_id[i], fold_levels)
-      
       w_mat[, i] <-
-        exp(-fold_loglik[, kappa_i])
+        exp(-fold_loglik[, kappa_index[i]])
     }
   }
   
@@ -91,11 +95,11 @@ tuple_function <- function(log_lik_mat,
     
     for(i in seq_len(n)){
       
-      kappa_i <- match(fold_id[i], fold_levels)
+      log_test <-
+        fold_loglik[, kappa_index[i]]
       
-      log_test <- fold_loglik[, kappa_i]
-      
-      log_train <- total_loglik - log_test
+      log_train <-
+        total_loglik - log_test
       
       log_w <-
         (1 - alpha) * log_train -
@@ -113,14 +117,14 @@ tuple_function <- function(log_lik_mat,
     
     log_inv_fold <- -fold_loglik
     
-    log_norm <- apply(log_inv_fold, 1, log_sum_exp)
+    log_norm <-
+      apply(log_inv_fold, 1, log_sum_exp)
     
     for(i in seq_len(n)){
       
-      kappa_i <- match(fold_id[i], fold_levels)
-      
       w_mat[, i] <-
-        exp(log_inv_fold[, kappa_i] - log_norm)
+        exp(log_inv_fold[, kappa_index[i]]
+            - log_norm)
     }
   }
   
