@@ -52,8 +52,7 @@ log_q_b <- function(theta,
   
   ll <- log_like(theta, X, y)
   
-  log_prior(theta) +
-    alpha * sum(ll)
+  log_prior(theta) + alpha * sum(ll)
 }
 
 
@@ -68,8 +67,7 @@ grad_log_q_b <- function(theta,
   
   grad_lp <- grad_log_prior(theta)
   
-  grad_lp +
-    alpha * colSums(grad_ll)
+  grad_lp + alpha * colSums(grad_ll)
 }
 
 
@@ -84,9 +82,7 @@ log_q_z <- function(theta,
   
   ll <- log_like(theta, X, y)
   
-  log_prior(theta) +
-    sum(ll) +
-    log_sum_exp(-ll)
+  log_prior(theta) + sum(ll) + log_sum_exp(-ll)
 }
 
 
@@ -121,9 +117,6 @@ grad_log_q_z <- function(theta,
 
 
 ## Potential energy functions
-# =========================================================
-# HMC target energies
-# =========================================================
 
 U_g <- function(theta,
                 X,
@@ -132,13 +125,11 @@ U_g <- function(theta,
                 log_prior,
                 ...){
   
-  -log_q_g(
-    theta = theta,
-    X = X,
-    y = y,
-    log_like = log_like,
-    log_prior = log_prior
-  )
+  -log_q_g(theta = theta,
+           X = X,
+           y = y,
+           log_like = log_like,
+           log_prior = log_prior)
 }
 
 
@@ -150,13 +141,11 @@ grad_g <- function(theta,
                    grad_log_prior,
                    ...){
   
-  -grad_log_q_g(
-    theta = theta,
-    X = X,
-    y = y,
-    grad_log_like = grad_log_like,
-    grad_log_prior = grad_log_prior
-  )
+  -grad_log_q_g(theta = theta,
+                X = X,
+                y = y,
+                grad_log_like = grad_log_like,
+                grad_log_prior = grad_log_prior)
 }
 
 
@@ -227,12 +216,10 @@ grad_z <- function(theta,
                    log_like,
                    ...){
   
-  -grad_log_q_z(
-    theta = theta,
-    X = X,
-    y = y,
-    grad_log_like = grad_log_like,
-    grad_log_prior = grad_log_prior,
-    log_like = log_like
-  )
+  -grad_log_q_z(theta = theta,
+                X = X,
+                y = y,
+                grad_log_like = grad_log_like,
+                grad_log_prior = grad_log_prior,
+                log_like = log_like)
 }
