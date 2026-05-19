@@ -18,62 +18,64 @@ truncate_weights <- function(w){
 }
 
 tuple_function <- function(log_lik_mat,
-                           fold_id,
+                           kappa,
                            method,
                            weight_type = "is",
                            alpha = NULL){
   
-  method <- match.arg(method,
-                      c("Gelfand",
-                        "Bronze",
-                        "Zanella"))
+  method <- match.arg(method, c("Gelfand",
+                                "Bronze",
+                                "Zanella"))
   
-  weight_type <- match.arg(weight_type,
-                           c("is", "tis", "psis"))
+  weight_type <- match.arg(weight_type, c("is",
+                                          "tis",
+                                          "psis"))
   
   S <- nrow(log_lik_mat)
   n <- ncol(log_lik_mat)
   
-  if(is.null(fold_id)){
-    stop("fold_id must be supplied.")
+  if(length(kappa) != n){
+    stop("length(kappa) must equal ncol(log_lik_mat)")
   }
   
-  fold_levels <- sort(unique(fold_id))
-  K <- length(fold_levels)
-  
-  # kappa(i) vector
-  
-  kappa_index <- match(fold_id, fold_levels)
-  
-  # Fold-wise log likelihoods S x K matrix
+  K <- max(kappa)
+
   
   fold_loglik <- matrix(0, S, K)
   
   for(k in seq_len(K)){
     
-    idx <- which(kappa_index == k)
+    idx <- which(kappa == k)
     
-    fold_loglik[, k] <- rowSums(log_lik_mat[, idx, drop = FALSE])
+    fold_loglik[, k] <-
+      rowSums(log_lik_mat[, idx, drop = FALSE])
   }
+  
   
   total_loglik <- rowSums(log_lik_mat)
   
   
+  # Raw importance weights
+  
   w_mat <- matrix(0, S, n)
   
-
   # Gelfand
+  
   
   if(method == "Gelfand"){
     
     for(i in seq_len(n)){
       
-      w_mat[, i] <- exp(-fold_loglik[, kappa_index[i]])
+      k_i <- kappa[i]
+      
+      w_mat[, i] <-
+        exp(-fold_loglik[, k_i])
     }
   }
   
-  # Bronze
   
+  # Bronze
+ 
   if(method == "Bronze"){
     
     if(is.null(alpha)){
@@ -82,27 +84,39 @@ tuple_function <- function(log_lik_mat,
     
     for(i in seq_len(n)){
       
-      log_test <- fold_loglik[, kappa_index[i]]
+      k_i <- kappa[i]
       
-      log_train <- total_loglik - log_test
+      log_test <-
+        fold_loglik[, k_i]
       
-      log_w <- (1 - alpha) * log_train - alpha * log_test
+      log_train <-
+        total_loglik - log_test
+      
+      log_w <-
+        (1 - alpha) * log_train -
+        alpha * log_test
       
       w_mat[, i] <- exp(log_w)
     }
   }
   
+ 
   # Zanella
   
   if(method == "Zanella"){
     
     log_inv_fold <- -fold_loglik
     
-    log_norm <- apply(log_inv_fold, 1, log_sum_exp)
+    log_norm <-
+      apply(log_inv_fold, 1, log_sum_exp)
     
     for(i in seq_len(n)){
       
-      w_mat[, i] <- exp(log_inv_fold[, kappa_index[i]] - log_norm)
+      k_i <- kappa[i]
+      
+      w_mat[, i] <-
+        exp(log_inv_fold[, k_i] -
+              log_norm)
     }
   }
   
@@ -122,8 +136,9 @@ tuple_function <- function(log_lik_mat,
     
     if(weight_type == "psis"){
       
-      psis_details <- loo::psis(log(w_mat[, i]),
-                                r_eff = 1)
+      psis_details <-
+        loo::psis(log(w_mat[, i]),
+                  r_eff = 1)
       
       w <- weights(psis_details,
                    log = FALSE,
@@ -133,13 +148,14 @@ tuple_function <- function(log_lik_mat,
     w_mat[, i] <- w
   }
   
+  # Tuple construction
+  
   numerator <- exp(log_lik_mat) * w_mat
   denominator <- w_mat
   
   list(numerator = numerator,
        denominator = denominator)
 }
-
 
 # Batch means quadratic form t(v) %*% Omega %*% v
 
