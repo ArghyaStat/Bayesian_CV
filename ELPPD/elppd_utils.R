@@ -17,6 +17,11 @@ truncate_weights <- function(w){
   pmin(w, tau)
 }
 
+kappa <- function(i){
+  
+  
+}
+
 tuple_function <- function(log_lik_mat,
                            kappa,
                            method,
@@ -47,8 +52,7 @@ tuple_function <- function(log_lik_mat,
     
     idx <- which(kappa == k)
     
-    fold_loglik[, k] <-
-      rowSums(log_lik_mat[, idx, drop = FALSE])
+    fold_loglik[, k] <- rowSums(log_lik_mat[, idx, drop = FALSE])
   }
   
   
@@ -68,8 +72,7 @@ tuple_function <- function(log_lik_mat,
       
       k_i <- kappa[i]
       
-      w_mat[, i] <-
-        exp(-fold_loglik[, k_i])
+      w_mat[, i] <- exp(-fold_loglik[, k_i])
     }
   }
   
@@ -86,15 +89,11 @@ tuple_function <- function(log_lik_mat,
       
       k_i <- kappa[i]
       
-      log_test <-
-        fold_loglik[, k_i]
+      log_test <- fold_loglik[, k_i]
       
-      log_train <-
-        total_loglik - log_test
+      log_train <- total_loglik - log_test
       
-      log_w <-
-        (1 - alpha) * log_train -
-        alpha * log_test
+      log_w <- (1 - alpha) * log_train - alpha * log_test
       
       w_mat[, i] <- exp(log_w)
     }
@@ -107,16 +106,13 @@ tuple_function <- function(log_lik_mat,
     
     log_inv_fold <- -fold_loglik
     
-    log_norm <-
-      apply(log_inv_fold, 1, log_sum_exp)
+    log_norm <- apply(log_inv_fold, 1, log_sum_exp)
     
     for(i in seq_len(n)){
       
       k_i <- kappa[i]
       
-      w_mat[, i] <-
-        exp(log_inv_fold[, k_i] -
-              log_norm)
+      w_mat[, i] <- exp(log_inv_fold[, k_i] - log_norm)
     }
   }
   

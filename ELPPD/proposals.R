@@ -105,13 +105,9 @@ grad_log_q_z <- function(theta,
   
   w <- exp(log_w)
   
-  grad_mix <- colSums(
-    grad_ll * w
-  )
+  grad_mix <- colSums(grad_ll * w)
   
-  grad_lp +
-    colSums(grad_ll) -
-    grad_mix
+  grad_lp + colSums(grad_ll) - grad_mix
 }
 
 
@@ -158,14 +154,12 @@ U_b <- function(theta,
                 log_prior,
                 ...){
   
-  -log_q_b(
-    theta = theta,
-    X = X,
-    y = y,
-    alpha = alpha,
-    log_like = log_like,
-    log_prior = log_prior
-  )
+  -log_q_b(theta = theta,
+           X = X,
+           y = y,
+           alpha = alpha,
+           log_like = log_like,
+           log_prior = log_prior)
 }
 
 
@@ -178,14 +172,12 @@ grad_b <- function(theta,
                    grad_log_prior,
                    ...){
   
-  -grad_log_q_b(
-    theta = theta,
-    X = X,
-    y = y,
-    alpha = alpha,
-    grad_log_like = grad_log_like,
-    grad_log_prior = grad_log_prior
-  )
+  -grad_log_q_b(theta = theta,
+                X = X,
+                y = y,
+                alpha = alpha,
+                grad_log_like = grad_log_like,
+                grad_log_prior = grad_log_prior)
 }
 
 
@@ -197,13 +189,11 @@ U_z <- function(theta,
                 log_prior,
                 ...){
   
-  -log_q_z(
-    theta = theta,
-    X = X,
-    y = y,
-    log_like = log_like,
-    log_prior = log_prior
-  )
+  -log_q_z(theta = theta,
+           X = X,
+           y = y,
+           log_like = log_like,
+           log_prior = log_prior)
 }
 
 

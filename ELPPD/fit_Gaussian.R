@@ -13,23 +13,6 @@ source("proposals.R")
 source("sampler.R")
 source("elppd_utils.R")
 
-
-# Simulation design
-
-
-n <- 50
-d <- 10
-K <- 50
-S <- 1e5
-
-# Hyperparameters
-
-sigma2 <- 1
-tau2 <- 1e2
-
-set.seed(1709)
-
-
 # Simulate Gaussian linear model
 
 sim_data <- function(n, d){
@@ -45,13 +28,6 @@ sim_data <- function(n, d){
        beta_true = beta_true)
 }
 
-dat <- sim_data(n, d)
-
-X <- dat$X
-y <- dat$y
-
-reps <- 100
-n.cores <- 50
 
 # Gaussian likelihood
 
@@ -94,6 +70,27 @@ grad_log_prior <- function(theta){
   
   -theta / tau2
 }
+
+# Simulation design
+
+
+n <- 50
+d <- 10
+K <- 10
+S <- 1e5
+
+# Hyperparameters
+
+sigma2 <- 1
+tau2 <- 1e2
+
+set.seed(1709)
+
+dat <- sim_data(n, d)
+
+X <- dat$X
+y <- dat$y
+
 
 
 # ---------------------------------------------------------
