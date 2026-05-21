@@ -45,6 +45,8 @@ tuple_function <- function(log_lik_mat,
     
     idx <- which(kappa == k)
     
+    # kth column chooses those indices idx which are in k-th fold.
+    
     fold_loglik[, k] <- rowSums(log_lik_mat[, idx, drop = FALSE])
   }
   
@@ -83,6 +85,8 @@ tuple_function <- function(log_lik_mat,
     
     if(method == "Zanella"){
       
+      # 1/prod_k(p(y_j | \theta))
+      
       log_inv_fold <- -fold_loglik
       
       log_norm <- apply(log_inv_fold, 1, log_sum_exp)
@@ -107,7 +111,7 @@ tuple_function <- function(log_lik_mat,
     
     if(weight_type == "psis"){
       
-      psis_details <- loo::psis(log_w_k, r_eff = 1)
+      psis_details <- loo::psis(log_w_k, r_eff = 1e2)
 
       w_k <- weights(psis_details, log = FALSE, normalize = FALSE)
     }
@@ -169,14 +173,28 @@ bm.quad.form <- function(Y, v,
 
 # Asymptotic variance estimator
 
-asymp.var.elppd <- function(num, den, S, b = NULL){
+asymp.var.elppd <- function(num, 
+                            den, 
+                            S, 
+                            b = NULL,
+                            method){
     
     v <- c(1 / colMeans(num), -1 / colMeans(den))
     Y <- cbind(num, den)
     mu <- colMeans(num) / colMeans(den)
+ 
+    if(method == "our"){
     
+      qf <- bm.quad.form(Y = Y, v = v, b = b)
+    }
   
-  qf <- bm.quad.form(Y = Y, v = v, b = b)
+    if(method == "mcmcse"){
+    
+      foo <- mcmcse::mcse.multi(Y, adjust = FALSE, r = 1)
+    
+      qf <- as.numeric(crossprod(v, foo$cov %*% v))
+      
+  }
   
   list(elppd = sum(log(mu)), asymp_var = qf / S)
 }
