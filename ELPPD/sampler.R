@@ -40,7 +40,7 @@ leapfrog_hmc <- function(epsilon,
     
     for(l in 1:L){
       
-      x_prop <- x_prop + epsilon *as.vector(M_inv %*% p_prop)
+      x_prop <- x_prop + epsilon * as.vector(M_inv %*% p_prop)
       
       g <- grad_U(x_prop, ...)
       
@@ -56,11 +56,9 @@ leapfrog_hmc <- function(epsilon,
    
     # Hamiltonians
     
-    H_curr <- U(x[iter - 1, ], ...) + 
-      0.5 * t(p[iter, ]) %*% (M_inv %*% p[iter, ])
+    H_curr <- U(x[iter - 1, ], ...) + 0.5 * t(p[iter, ]) %*% (M_inv %*% p[iter, ])
     
-    H_prop <- U(x_prop, ... ) + 
-      0.5 * t(p_prop) %*% (M_inv %*% p_prop)
+    H_prop <- U(x_prop, ... ) + 0.5 * t(p_prop) %*% (M_inv %*% p_prop)
   
     # Accept/reject
     

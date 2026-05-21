@@ -36,8 +36,8 @@ log_like <- function(theta, X, y){
   mu <- X %*% theta
   
   dnorm(y, 
-        mean = mu,
-        sd = sqrt(sigma2),
+        mean = mu, 
+        sd = sqrt(sigma2), 
         log = TRUE)
 }
 
@@ -77,7 +77,7 @@ grad_log_prior <- function(theta){
 n <- 50
 d <- 10
 K <- 10
-S <- 1e5
+S <- 1e4
 
 # Hyperparameters
 
@@ -92,17 +92,14 @@ X <- dat$X
 y <- dat$y
 
 
-
-# ---------------------------------------------------------
 # Fold construction
-# ---------------------------------------------------------
 
 kappa <- sample(rep(seq_len(K),
                     length.out = n))
 
 folds <- split(seq_len(n), kappa)
 
-fold_sizes <- lengths(folds)
+fold_sizes <- length(folds)
 
 
 # Fold-specific powers alpha_k
@@ -113,7 +110,7 @@ alpha_fold <- (n - fold_sizes) / n
 alpha <- mean(alpha_fold)
 
 # Initial value
-x_init <- lm(y ~ X - 1)$coef
+theta_init <- lm(y ~ X - 1)$coef
 
 # Gelfand sampler
 
@@ -123,7 +120,7 @@ fit_g <- leapfrog_hmc(
   niters = S,
   U = U_g,
   grad_U = grad_g,
-  x_init = x_init,
+  x_init = theta_init,
   M = diag(d),
   X = X,
   y = y,
@@ -141,7 +138,7 @@ fit_b <- leapfrog_hmc(
   niters = S,
   U = U_b,
   grad_U = grad_b,
-  x_init = x_init,
+  x_init = theta_init,
   M = diag(d),
   X = X,
   y = y,
@@ -161,7 +158,7 @@ fit_z <- leapfrog_hmc(
   niters = S,
   U = U_z,
   grad_U = grad_z,
-  x_init = x_init,
+  x_init = theta_init,
   M = diag(d),
   X = X,
   y = y,
@@ -188,9 +185,7 @@ log_lik_z <- t(sapply(1:S, function(s)
   log_like(samples_z[s, ], X, y)))
 
 
-# ---------------------------------------------------------
 # Gelfand
-# ---------------------------------------------------------
 
 tup_g_is <- tuple_function(
   log_lik_mat = log_lik_g,
