@@ -177,10 +177,12 @@ results <- foreach(r = 1:reps,
                        M = diag(d),
                        X = X,
                        y = y,
+                       kappa = kappa,
                        log_like = log_like,
                        log_prior = log_prior,
                        grad_log_like = grad_log_like,
-                       grad_log_prior = grad_log_prior)
+                       grad_log_prior = grad_log_prior
+                     )
                      
                      samples_g <- fit_g$samples
                      samples_b <- fit_b$samples
@@ -224,9 +226,8 @@ results <- foreach(r = 1:reps,
                      )
                      
                      
-                     # ---------------------------------------------------------
                      # Bronze
-                     # ---------------------------------------------------------
+                
                      
                      tup_b_is <- tuple_function(
                        log_lik_mat = log_lik_b,
@@ -253,9 +254,7 @@ results <- foreach(r = 1:reps,
                      )
                      
                      
-                     # ---------------------------------------------------------
                      # Zanella
-                     # ---------------------------------------------------------
                      
                      tup_z_is <- tuple_function(
                        log_lik_mat = log_lik_z,

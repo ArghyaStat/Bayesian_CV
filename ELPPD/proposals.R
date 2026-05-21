@@ -221,8 +221,10 @@ U_z <- function(theta,
            X = X,
            y = y,
            log_like = log_like,
-           log_prior = log_prior)
+           log_prior = log_prior,
+           ...)
 }
+
 
 
 
@@ -239,5 +241,6 @@ grad_z <- function(theta,
                 y = y,
                 grad_log_like = grad_log_like,
                 grad_log_prior = grad_log_prior,
-                log_like = log_like)
+                log_like = log_like,
+                ...)
 }
