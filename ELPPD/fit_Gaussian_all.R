@@ -51,7 +51,7 @@ X <- dat$X
 y <- dat$y
 
 reps <- 100
-n.cores <- 50
+n.cores <- 10
 
 # Gaussian likelihood
 
@@ -107,19 +107,14 @@ results <- foreach(r = 1:reps,
                    .combine = rbind) %dopar% {
                      
                      
-                     fold_id <- sample(
-                       rep(seq_len(K),
-                           length.out = n)
-                     )
-                    
+                     # Fold construction
                      
-                     kappa <- fold_id
-                     
-                     # Fold sets D_k
+                     kappa <- sample(rep(seq_len(K),
+                                         length.out = n))
                      
                      folds <- split(seq_len(n), kappa)
                      
-                     fold_sizes <- lengths(folds)
+                     fold_sizes <- length(folds)
                      
                      
                      # Fold-specific powers alpha_k
@@ -130,7 +125,7 @@ results <- foreach(r = 1:reps,
                      alpha <- mean(alpha_fold)
                      
                      # Initial value
-                     x_init <- lm(y ~ X - 1)$coef
+                     theta_init <- lm(y ~ X - 1)$coef
                      
                      # Gelfand sampler
                      
@@ -140,7 +135,7 @@ results <- foreach(r = 1:reps,
                        niters = S,
                        U = U_g,
                        grad_U = grad_g,
-                       x_init = x_init,
+                       x_init = theta_init,
                        M = diag(d),
                        X = X,
                        y = y,
@@ -158,7 +153,7 @@ results <- foreach(r = 1:reps,
                        niters = S,
                        U = U_b,
                        grad_U = grad_b,
-                       x_init = x_init,
+                       x_init = theta_init,
                        M = diag(d),
                        X = X,
                        y = y,
@@ -178,7 +173,7 @@ results <- foreach(r = 1:reps,
                        niters = S,
                        U = U_z,
                        grad_U = grad_z,
-                       x_init = x_init,
+                       x_init = theta_init,
                        M = diag(d),
                        X = X,
                        y = y,
@@ -205,27 +200,25 @@ results <- foreach(r = 1:reps,
                        log_like(samples_z[s, ], X, y)))
                      
                      
-                     # ---------------------------------------------------------
                      # Gelfand
-                     # ---------------------------------------------------------
                      
                      tup_g_is <- tuple_function(
                        log_lik_mat = log_lik_g,
-                       fold_id = kappa,
+                       kappa = kappa,
                        method = "Gelfand",
                        weight_type = "is"
                      )
                      
                      tup_g_tis <- tuple_function(
                        log_lik_mat = log_lik_g,
-                       fold_id = kappa,
+                       kappa = kappa,
                        method = "Gelfand",
                        weight_type = "tis"
                      )
                      
                      tup_g_psis <- tuple_function(
                        log_lik_mat = log_lik_g,
-                       fold_id = kappa,
+                       kappa = kappa,
                        method = "Gelfand",
                        weight_type = "psis"
                      )
@@ -237,7 +230,7 @@ results <- foreach(r = 1:reps,
                      
                      tup_b_is <- tuple_function(
                        log_lik_mat = log_lik_b,
-                       fold_id = kappa,
+                       kappa = kappa,
                        method = "Bronze",
                        weight_type = "is",
                        alpha = alpha
@@ -245,7 +238,7 @@ results <- foreach(r = 1:reps,
                      
                      tup_b_tis <- tuple_function(
                        log_lik_mat = log_lik_b,
-                       fold_id = kappa,
+                       kappa = kappa,
                        method = "Bronze",
                        weight_type = "tis",
                        alpha = alpha
@@ -253,7 +246,7 @@ results <- foreach(r = 1:reps,
                      
                      tup_b_psis <- tuple_function(
                        log_lik_mat = log_lik_b,
-                       fold_id = kappa,
+                       kappa = kappa,
                        method = "Bronze",
                        weight_type = "psis",
                        alpha = alpha
@@ -266,26 +259,26 @@ results <- foreach(r = 1:reps,
                      
                      tup_z_is <- tuple_function(
                        log_lik_mat = log_lik_z,
-                       fold_id = kappa,
+                       kappa = kappa,
                        method = "Zanella",
                        weight_type = "is"
                      )
                      
                      tup_z_tis <- tuple_function(
                        log_lik_mat = log_lik_z,
-                       fold_id = kappa,
+                       kappa = kappa,
                        method = "Zanella",
                        weight_type = "tis"
                      )
                      
                      tup_z_psis <- tuple_function(
                        log_lik_mat = log_lik_z,
-                       fold_id = kappa,
+                       kappa = kappa,
                        method = "Zanella",
                        weight_type = "psis"
                      )
                      
-                    
+                     
                      # Asymptotic variance estimation
                      
                      out_g_is <- asymp.var.elppd(

@@ -77,7 +77,7 @@ grad_log_prior <- function(theta){
 n <- 50
 d <- 10
 K <- 10
-S <- 1e4
+S <- 1e5
 
 # Hyperparameters
 
@@ -189,21 +189,21 @@ log_lik_z <- t(sapply(1:S, function(s)
 
 tup_g_is <- tuple_function(
   log_lik_mat = log_lik_g,
-  fold_id = kappa,
+  kappa = kappa,
   method = "Gelfand",
   weight_type = "is"
 )
 
 tup_g_tis <- tuple_function(
   log_lik_mat = log_lik_g,
-  fold_id = kappa,
+  kappa = kappa,
   method = "Gelfand",
   weight_type = "tis"
 )
 
 tup_g_psis <- tuple_function(
   log_lik_mat = log_lik_g,
-  fold_id = kappa,
+  kappa = kappa,
   method = "Gelfand",
   weight_type = "psis"
 )
@@ -215,7 +215,7 @@ tup_g_psis <- tuple_function(
 
 tup_b_is <- tuple_function(
   log_lik_mat = log_lik_b,
-  fold_id = kappa,
+  kappa = kappa,
   method = "Bronze",
   weight_type = "is",
   alpha = alpha
@@ -223,7 +223,7 @@ tup_b_is <- tuple_function(
 
 tup_b_tis <- tuple_function(
   log_lik_mat = log_lik_b,
-  fold_id = kappa,
+  kappa = kappa,
   method = "Bronze",
   weight_type = "tis",
   alpha = alpha
@@ -231,7 +231,7 @@ tup_b_tis <- tuple_function(
 
 tup_b_psis <- tuple_function(
   log_lik_mat = log_lik_b,
-  fold_id = kappa,
+  kappa = kappa,
   method = "Bronze",
   weight_type = "psis",
   alpha = alpha
@@ -244,21 +244,21 @@ tup_b_psis <- tuple_function(
 
 tup_z_is <- tuple_function(
   log_lik_mat = log_lik_z,
-  fold_id = kappa,
+  kappa = kappa,
   method = "Zanella",
   weight_type = "is"
 )
 
 tup_z_tis <- tuple_function(
   log_lik_mat = log_lik_z,
-  fold_id = kappa,
+  kappa = kappa,
   method = "Zanella",
   weight_type = "tis"
 )
 
 tup_z_psis <- tuple_function(
   log_lik_mat = log_lik_z,
-  fold_id = kappa,
+  kappa = kappa,
   method = "Zanella",
   weight_type = "psis"
 )

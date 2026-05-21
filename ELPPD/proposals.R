@@ -77,37 +77,81 @@ grad_log_q_b <- function(theta,
 log_q_z <- function(theta,
                     X,
                     y,
+                    kappa,
                     log_like,
                     log_prior){
   
   ll <- log_like(theta, X, y)
   
-  log_prior(theta) + sum(ll) + log_sum_exp(-ll)
+  K <- max(kappa)
+  
+  fold_loglik <- numeric(K)
+  
+  for(k in seq_len(K)){
+    
+    idx <- which(kappa == k)
+    
+    fold_loglik[k] <- sum(ll[idx])
+  }
+  
+  log_prior(theta) +
+    sum(ll) +
+    log_sum_exp(-fold_loglik)
 }
 
 
 grad_log_q_z <- function(theta,
                          X,
                          y,
+                         kappa,
                          grad_log_like,
                          grad_log_prior,
                          log_like){
   
   ll <- log_like(theta, X, y)
   
-  grad_ll <- grad_log_like(theta, X, y)
+  grad_ll <- grad_log_like(theta,
+                           X,
+                           y)
   
   grad_lp <- grad_log_prior(theta)
   
-  log_w <- -ll
+  K <- max(kappa)
   
-  log_w <- log_w - log_sum_exp(log_w)
+  fold_loglik <- numeric(K)
+  
+  fold_grad <- matrix(
+    0,
+    nrow = K,
+    ncol = ncol(grad_ll)
+  )
+  
+  for(k in seq_len(K)){
+    
+    idx <- which(kappa == k)
+    
+    fold_loglik[k] <- sum(ll[idx])
+    
+    fold_grad[k, ] <-
+      colSums(
+        grad_ll[idx, ,
+                drop = FALSE]
+      )
+  }
+  
+  log_w <- -fold_loglik
+  
+  log_w <- log_w -
+    log_sum_exp(log_w)
   
   w <- exp(log_w)
   
-  grad_mix <- colSums(grad_ll * w)
+  grad_mix <-
+    colSums(fold_grad * w)
   
-  grad_lp + colSums(grad_ll) - grad_mix
+  grad_lp +
+    colSums(grad_ll) -
+    grad_mix
 }
 
 
