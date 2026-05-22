@@ -19,7 +19,7 @@ source("elppd_utils.R")
 
 n <- 50
 d <- 10
-K <- 5
+K <- 50
 S <- 1e5
 
 # Hyperparameters
@@ -51,7 +51,7 @@ X <- dat$X
 y <- dat$y
 
 reps <- 100
-n.cores <- 10
+n.cores <- 50
 
 # Gaussian likelihood
 
@@ -168,7 +168,7 @@ results <- foreach(r = 1:reps,
                      # Zanella sampler
                      
                      fit_z <- leapfrog_hmc(
-                       epsilon = 0.15,
+                       epsilon = 0.16,
                        L = 10,
                        niters = S,
                        U = U_z,

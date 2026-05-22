@@ -3,9 +3,8 @@ rm(list = ls())
 mydir <- this.path::here()
 setwd(mydir)
 
-#===========================================================
+
 # User inputs
-#===========================================================
 
 n <- 50
 d <- 10
@@ -15,31 +14,20 @@ tau2 <- 1e2
 
 set.seed(1709)
 
-#===========================================================
-# Simulate Gaussian Linear Model
-#===========================================================
+
+# Simulate Gaussian linear model
 
 sim_data <- function(n, d){
   
-  X <- matrix(
-    rnorm(n * d),
-    n,
-    d
-  )
+  X <- matrix(rnorm(n*d), n, d)
   
   beta_true <- rnorm(d)
   
-  y <- X %*% beta_true +
-    rnorm(
-      n,
-      sd = sqrt(sigma2)
-    )
+  y <- X %*% beta_true + rnorm(n, sd = sqrt(sigma2))
   
-  list(
-    X = X,
-    y = as.vector(y),
-    beta_true = beta_true
-  )
+  list(X = X,
+       y = as.vector(y),
+       beta_true = beta_true)
 }
 
 dat <- sim_data(n, d)
@@ -47,10 +35,8 @@ dat <- sim_data(n, d)
 X <- dat$X
 y <- dat$y
 
-#===========================================================
+
 # Exact tractable LOO-ELPPD
-# No MCMC required
-#===========================================================
 
 exact_elpd_gaussian <- function(
     X,
@@ -65,221 +51,115 @@ exact_elpd_gaussian <- function(
   
   for(i in 1:n){
     
-    #-------------------------------------------------------
     # Leave-one-out data
-    #-------------------------------------------------------
     
     X_loo <- X[-i, , drop = FALSE]
     y_loo <- y[-i]
     
-    x_test <- matrix(
-      X[i, ],
-      nrow = 1
-    )
+    x_test <- matrix(X[i, ], nrow = 1)
     
     y_test <- y[i]
     
-    #-------------------------------------------------------
-    # Exact Gaussian posterior
-    # beta | y_-i
-    #-------------------------------------------------------
+
+    # Exact Gaussian posterior of beta | y_-i
+  
     
-    V_post <- solve(
-      crossprod(X_loo) / sigma2 +
-        diag(
-          1 / tau2,
-          d
-        )
-    )
+    V_post <- solve(crossprod(X_loo) / sigma2 + diag(1 / tau2, d))
     
-    m_post <- V_post %*%
-      crossprod(
-        X_loo,
-        y_loo
-      ) / sigma2
+    m_post <- V_post %*% crossprod(X_loo, y_loo) / sigma2
     
-    #-------------------------------------------------------
-    # Exact posterior predictive
-    #-------------------------------------------------------
+    # Exact posterior predictive mean and variance
     
-    pred_mean <- as.numeric(
-      x_test %*% m_post
-    )
+    pred_mean <- as.numeric(x_test %*% m_post)
     
-    pred_var <- as.numeric(
-      sigma2 +
-        x_test %*%
-        V_post %*%
-        t(x_test)
-    )
+    pred_var <- as.numeric(sigma2 + x_test %*% V_post %*% t(x_test))
     
-    #-------------------------------------------------------
-    # Exact log predictive density
-    #-------------------------------------------------------
     
-    log_ppds[i] <- dnorm(
-      x = y_test,
-      mean = pred_mean,
-      sd = sqrt(pred_var),
-      log = TRUE
-    )
+    # Exact log ppd
+    
+    log_ppds[i] <- dnorm(x = y_test, 
+                         mean = pred_mean, 
+                         sd = sqrt(pred_var),
+                         log = TRUE)
   }
   
   sum(log_ppds)
 }
 
-#===========================================================
-# Exact ELPPD
-#===========================================================
 
-elppd_exact <- exact_elpd_gaussian(
-  X = X,
-  y = y,
-  sigma2 = sigma2,
-  tau2 = tau2
-)
+# Exact ELPPD
+
+elppd_exact <- exact_elpd_gaussian(X = X,
+                                   y = y,
+                                   sigma2 = sigma2,
+                                   tau2 = tau2)
 
 elppd_exact
 
 
-#===========================================================
 # Fold settings
-#===========================================================
 
 K.vec <- c(5, 10, 50)
 
-#===========================================================
+
 # Colors
-#===========================================================
 
-submethod.cols <- c(
-  "steelblue",   # IS
-  "darkorange",  # TIS
-  "forestgreen"  # PSIS
-)
+submethod.cols <- c("steelblue",   # IS
+                    "darkorange",  # TIS
+                    "forestgreen"  # PSIS
+                    )
 
-box.cols <- rep(
-  submethod.cols,
-  3
-)
+box.cols <- rep(submethod.cols, 3)
 
-#===========================================================
-# Helper functions
-#===========================================================
 
-plot_elpd_panel <- function(
-    results,
-    true_elpd,
-    title){
+
+plot_elpd_panel <- function(results, true_elpd, title){
   
-  plot.data <- list(
-    
-    results$elppd_g_is,
-    results$elppd_g_tis,
-    results$elppd_g_psis,
-    
-    results$elppd_b_is,
-    results$elppd_b_tis,
-    results$elppd_b_psis,
-    
-    results$elppd_z_is,
-    results$elppd_z_tis,
-    results$elppd_z_psis
-  )
+    plot.data <- list(results$elppd_g_is,
+                      results$elppd_g_tis,
+                      results$elppd_g_psis,
+                      
+                      results$elppd_b_is,
+                      results$elppd_b_tis,
+                      results$elppd_b_psis,
+                      
+                      results$elppd_z_is,
+                      results$elppd_z_tis,
+                      results$elppd_z_psis)
   
-  boxplot(
-    plot.data,
-    
-    names = rep(
-      c("IS", "TIS", "PSIS"),
-      3
-    ),
-    
-    col = box.cols,
-    border = "black",
-    
-    las = 2,
-    outline = FALSE,
-    xaxt = "n",
-    
-    ylab = "ELPPD",
-    main = title
+  boxplot(plot.data, names = rep(c("IS", "TIS", "PSIS"), 3 ),  
+          col = box.cols,
+          border = "black",
+          
+          las = 2,
+          outline = FALSE,
+          xaxt = "n",
+          
+          ylab = "ELPPD",
+          main = title
   )
+          
+   
   
-  axis(
-    1,
-    at = 1:9,
-    labels = rep(
-      c("IS", "TIS", "PSIS"),
-      3
-    ),
-    las = 2
-  )
+  axis(1, at = 1:9, labels = rep(c("IS", "TIS", "PSIS"), 3), las = 2)
+      
+  axis(1, at = c(2, 5, 8), 
+       labels = c("Gelfand", "Bronze", "Zanella"), 
+       tick = FALSE,
+       line = 3)
   
-  axis(
-    1,
-    at = c(2, 5, 8),
-    labels = c(
-      "Gelfand",
-      "Bronze",
-      "Zanella"
-    ),
-    tick = FALSE,
-    line = 3
-  )
+  abline(h = true_elpd,  col = "red", lwd = 2, lty = 2)
   
-  abline(
-    h = true_elpd,
-    col = "red",
-    lwd = 2,
-    lty = 2
-  )
+  legend("topright", legend = c("IS", "TIS", "PSIS", "Gold ELPPD"),
+    
+  fill = c(submethod.cols, NA),
+  border = c("black","black","black", NA),
+  lty = c(NA,NA,NA,2),
+  lwd = c(NA,NA,NA,2),
+  col = c(NA,NA,NA,"red"),
+  bty = "n",
+  cex = 0.9)
   
-  legend(
-    "topright",
-    legend = c(
-      "IS",
-      "TIS",
-      "PSIS",
-      "Exact ELPPD"
-    ),
-    
-    fill = c(
-      submethod.cols,
-      NA
-    ),
-    
-    border = c(
-      "black",
-      "black",
-      "black",
-      NA
-    ),
-    
-    lty = c(
-      NA,
-      NA,
-      NA,
-      2
-    ),
-    
-    lwd = c(
-      NA,
-      NA,
-      NA,
-      2
-    ),
-    
-    col = c(
-      NA,
-      NA,
-      NA,
-      "red"
-    ),
-    
-    bty = "n",
-    cex = 0.9
-  )
 }
 
 
@@ -287,212 +167,117 @@ plot_var_panel <- function(
     results,
     title){
   
-  #---------------------------------------------------------
+  
   # Estimated asymptotic variances
-  #---------------------------------------------------------
   
-  plot.data <- list(
-    
-    results$var_g_is,
-    results$var_g_tis,
-    results$var_g_psis,
-    
-    results$var_b_is,
-    results$var_b_tis,
-    results$var_b_psis,
-    
-    results$var_z_is,
-    results$var_z_tis,
-    results$var_z_psis
-  )
-  
-  #---------------------------------------------------------
+  plot.data <- list(results$var_g_is,
+                    results$var_g_tis,
+                    results$var_g_psis,
+                    
+                    results$var_b_is,
+                    results$var_b_tis,
+                    results$var_b_psis,
+                    
+                    results$var_z_is,
+                    results$var_z_tis,
+                    results$var_z_psis)
+ 
   # Sample variances
-  #---------------------------------------------------------
-  
-  samp.var <- c(
+
+  samp.var <- c(var(results$elppd_g_is),
+                var(results$elppd_g_tis),
+                var(results$elppd_g_psis),
+                
+                var(results$elppd_b_is),
+                var(results$elppd_b_tis),
+                var(results$elppd_b_psis),
+                
+                var(results$elppd_z_is),
+                var(results$elppd_z_tis),
+                var(results$elppd_z_psis))
     
-    var(results$elppd_g_is),
-    var(results$elppd_g_tis),
-    var(results$elppd_g_psis),
     
-    var(results$elppd_b_is),
-    var(results$elppd_b_tis),
-    var(results$elppd_b_psis),
-    
-    var(results$elppd_z_is),
-    var(results$elppd_z_tis),
-    var(results$elppd_z_psis)
-  )
   
-  ymax <- max(
-    unlist(plot.data),
-    samp.var
-  )
-  
+  ymax <- max(unlist(plot.data), samp.var)
   pos <- 1:9
   
-  boxplot(
-    plot.data,
-    
-    at = pos,
-    
-    names = rep(
-      c("IS", "TIS", "PSIS"),
-      3
-    ),
-    
-    col = box.cols,
-    border = "black",
-    
-    ylim = c(0, ymax),
-    
-    las = 2,
-    outline = FALSE,
-    xaxt = "n",
-    
-    ylab = "Variance",
-    main = title
-  )
+  boxplot(plot.data, at = pos, names = rep(c("IS", "TIS", "PSIS"),3),
+          col = box.cols,
+          border = "black",
+          ylim = c(0, ymax),
+          las = 2,
+          outline = FALSE,
+          xaxt = "n",
+          ylab = "Variance",
+          main = title)
   
-  axis(
-    1,
-    at = pos,
-    labels = rep(
-      c("IS", "TIS", "PSIS"),
-      3
-    ),
-    las = 2
-  )
+  axis(1, at = 1:9, labels = rep(c("IS", "TIS", "PSIS"), 3), las = 2)
   
-  axis(
-    1,
-    at = c(2, 5, 8),
-    labels = c(
-      "Gelfand",
-      "Bronze",
-      "Zanella"
-    ),
-    tick = FALSE,
-    line = 3
-  )
+  axis(1, at = c(2, 5, 8), 
+       labels = c("Gelfand", "Bronze", "Zanella"), 
+       tick = FALSE,
+       line = 3)
   
   # sample variance benchmark
   
-  segments(
-    pos - 0.25,
-    samp.var,
-    pos + 0.25,
-    samp.var,
-    lwd = 3,
-    col = "red"
-  )
+  segments(pos - 0.25,
+           samp.var,
+           pos + 0.25,
+           samp.var,
+           lwd = 2,
+           col = "red")
   
-  legend(
-    "topright",
-    legend = c(
-      "IS",
-      "TIS",
-      "PSIS",
-      "Sample Variance"
-    ),
-    
-    fill = c(
-      submethod.cols,
-      NA
-    ),
-    
-    border = c(
-      "black",
-      "black",
-      "black",
-      NA
-    ),
-    
-    lwd = c(
-      NA,
-      NA,
-      NA,
-      3
-    ),
-    
-    col = c(
-      NA,
-      NA,
-      NA,
-      "red"
-    ),
-    
-    bty = "n",
-    cex = 0.9
-  )
+  legend("topright", legend = c("IS asymp.var", 
+                                "TIS asymp.var", 
+                                "PSIS asymp.var", 
+                                "Sample var"),
+         
+         fill = c(submethod.cols, NA),
+         border = c("black","black","black", NA),
+         lty = c(NA,NA,NA,2),
+         lwd = c(NA,NA,NA,2),
+         col = c(NA,NA,NA,"red"),
+         bty = "n",
+         cex = 0.9)
 }
 
-#===========================================================
+
 # ELPD comparison plot
-#===========================================================
 
-pdf(
-  "Gaussian_k_fold_elpd_comparison.pdf",
-  width = 16,
-  height = 5
-)
+pdf("Gaussian_k_fold_elpd_comparison.pdf", width = 16, height = 5)
 
-par(
-  mfrow = c(1,3),
-  mar = c(6,4,3,1),
-  mgp = c(2,0.7,0),
-  tcl = -0.3
-)
+par(mfrow = c(1,3),
+    mar = c(6,4,3,1),
+    mgp = c(2,0.7,0),
+    tcl = -0.3)
 
 for(K in K.vec){
   
-  load(
-    paste0(
-      K,
-      "_fold_elppd_Gaussian.RData"
-    )
-  )
+  load(paste0(K, "_fold_elppd_Gaussian.RData"))
   
-  plot_elpd_panel(
-    results = results,
-    true_elpd = elppd_exact,
-    title = paste0("K = ", K)
-  )
+  plot_elpd_panel(results = results,
+                  true_elpd = elppd_exact,
+                  title = paste0("K = ", K))
+    
 }
 
 dev.off()
 
-#===========================================================
 # Variance comparison plot
-#===========================================================
 
-pdf(
-  "Gaussian_k_fold_variance_comparison.pdf",
-  width = 16,
-  height = 5
-)
+pdf("Gaussian_k_fold_variance_comparison.pdf", width = 16, height = 5)
 
-par(
-  mfrow = c(1,3),
-  mar = c(6,4,3,1),
-  mgp = c(2,0.7,0),
-  tcl = -0.3
-)
+par(mfrow = c(1,3),
+    mar = c(6,4,3,1),
+    mgp = c(2,0.7,0),
+    tcl = -0.3)
 
 for(K in K.vec){
   
-  load(
-    paste0(
-      K,
-      "_fold_elppd_Gaussian.RData"
-    )
-  )
+  load(paste0(K, "_fold_elppd_Gaussian.RData"))
   
-  plot_var_panel(
-    results = results,
-    title = paste0("K = ", K)
-  )
+  plot_var_panel(results = results,
+                 title = paste0("K = ", K))
 }
 
 dev.off()
