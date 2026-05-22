@@ -92,6 +92,7 @@ X <- dat$X
 y <- dat$y
 
 
+
 # Fold construction
 
 kappa <- sample(rep(seq_len(K),
@@ -162,10 +163,12 @@ fit_z <- leapfrog_hmc(
   M = diag(d),
   X = X,
   y = y,
+  kappa = kappa,
   log_like = log_like,
   log_prior = log_prior,
   grad_log_like = grad_log_like,
-  grad_log_prior = grad_log_prior)
+  grad_log_prior = grad_log_prior
+)
 
 samples_g <- fit_g$samples
 samples_b <- fit_b$samples
@@ -209,9 +212,8 @@ tup_g_psis <- tuple_function(
 )
 
 
-# ---------------------------------------------------------
 # Bronze
-# ---------------------------------------------------------
+
 
 tup_b_is <- tuple_function(
   log_lik_mat = log_lik_b,
@@ -238,9 +240,7 @@ tup_b_psis <- tuple_function(
 )
 
 
-# ---------------------------------------------------------
 # Zanella
-# ---------------------------------------------------------
 
 tup_z_is <- tuple_function(
   log_lik_mat = log_lik_z,
@@ -269,58 +269,67 @@ tup_z_psis <- tuple_function(
 out_g_is <- asymp.var.elppd(
   num = tup_g_is$numerator,
   den = tup_g_is$denominator,
-  S = S
-)
+  S = S,
+  method = "mcmcse")
+
 
 out_g_tis <- asymp.var.elppd(
   num = tup_g_tis$numerator,
   den = tup_g_tis$denominator,
-  S = S
-)
+  S = S,
+  method = "mcmcse")
+
 
 out_g_psis <- asymp.var.elppd(
   num = tup_g_psis$numerator,
   den = tup_g_psis$denominator,
-  S = S
-)
+  S = S,
+  method = "mcmcse")
+
 
 
 out_b_is <- asymp.var.elppd(
   num = tup_b_is$numerator,
   den = tup_b_is$denominator,
-  S = S
-)
+  S = S,
+  method = "mcmcse")
+
 
 out_b_tis <- asymp.var.elppd(
   num = tup_b_tis$numerator,
   den = tup_b_tis$denominator,
-  S = S
-)
+  S = S,
+  method = "mcmcse")
+
 
 out_b_psis <- asymp.var.elppd(
   num = tup_b_psis$numerator,
   den = tup_b_psis$denominator,
-  S = S
-)
+  S = S,
+  method = "mcmcse")
+
 
 
 out_z_is <- asymp.var.elppd(
   num = tup_z_is$numerator,
   den = tup_z_is$denominator,
-  S = S
-)
+  S = S,
+  method = "mcmcse")
+
 
 out_z_tis <- asymp.var.elppd(
   num = tup_z_tis$numerator,
   den = tup_z_tis$denominator,
-  S = S
-)
+  S = S,
+  method = "mcmcse")
+
 
 out_z_psis <- asymp.var.elppd(
   num = tup_z_psis$numerator,
   den = tup_z_psis$denominator,
-  S = S
-)
+  S = S,
+  method = "mcmcse")
+
 
 c(elppd_g_is   = out_g_is$elppd,
   var_g_is     = out_g_is$asymp_var,

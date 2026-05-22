@@ -213,6 +213,7 @@ grad_b <- function(theta,
 U_z <- function(theta,
                 X,
                 y,
+                kappa,
                 log_like,
                 log_prior,
                 ...){
@@ -220,17 +221,16 @@ U_z <- function(theta,
   -log_q_z(theta = theta,
            X = X,
            y = y,
+           kappa = kappa,
            log_like = log_like,
-           log_prior = log_prior,
-           ...)
+           log_prior = log_prior)
 }
-
-
 
 
 grad_z <- function(theta,
                    X,
                    y,
+                   kappa,
                    grad_log_like,
                    grad_log_prior,
                    log_like,
@@ -239,8 +239,8 @@ grad_z <- function(theta,
   -grad_log_q_z(theta = theta,
                 X = X,
                 y = y,
+                kappa = kappa,
                 grad_log_like = grad_log_like,
                 grad_log_prior = grad_log_prior,
-                log_like = log_like,
-                ...)
+                log_like = log_like)
 }
