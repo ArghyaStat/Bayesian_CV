@@ -190,7 +190,7 @@ asymp.var.elppd <- function(num,
   
     if(method == "mcmcse"){
     
-      foo <- mcmcse::mcse.multi(Y, adjust = FALSE, r = 1)
+      foo <- mcmcse::mcse.multi(Y, adjust = FALSE)
     
       qf <- as.numeric(crossprod(v, foo$cov %*% v))
       

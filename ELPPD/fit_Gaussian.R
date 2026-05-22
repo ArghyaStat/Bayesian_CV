@@ -154,7 +154,7 @@ fit_b <- leapfrog_hmc(
 # Zanella sampler
 
 fit_z <- leapfrog_hmc(
-  epsilon = 0.15,
+  epsilon = 0.16,
   L = 10,
   niters = S,
   U = U_z,
