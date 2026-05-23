@@ -111,56 +111,130 @@ submethod.cols <- c("steelblue",   # IS
 
 box.cols <- rep(submethod.cols, 3)
 
+# ---------------------------------------------------------
+# Function to plot one ELPPD panel
+# ---------------------------------------------------------
 
-
-plot_elpd_panel <- function(results, true_elpd, title){
+plot_elpd_panel <- function(results,
+                            true_elpd,
+                            title,
+                            ylim = NULL){
   
-    plot.data <- list(results$elppd_g_is,
-                      results$elppd_g_tis,
-                      results$elppd_g_psis,
-                      
-                      results$elppd_b_is,
-                      results$elppd_b_tis,
-                      results$elppd_b_psis,
-                      
-                      results$elppd_z_is,
-                      results$elppd_z_tis,
-                      results$elppd_z_psis)
+  plot.data <- list(
+    results$elppd_g_is,
+    results$elppd_g_tis,
+    results$elppd_g_psis,
+    
+    results$elppd_b_is,
+    results$elppd_b_tis,
+    results$elppd_b_psis,
+    
+    results$elppd_z_is,
+    results$elppd_z_tis,
+    results$elppd_z_psis
+  )
   
-  boxplot(plot.data, names = rep(c("IS", "TIS", "PSIS"), 3 ),  
+  boxplot(plot.data,
           col = box.cols,
           border = "black",
-          
           las = 2,
           outline = FALSE,
           xaxt = "n",
-          
+          ylim = ylim,
           ylab = "ELPPD",
-          main = title
-  )
-          
-   
+          main = title)
   
-  axis(1, at = 1:9, labels = rep(c("IS", "TIS", "PSIS"), 3), las = 2)
-      
-  axis(1, at = c(2, 5, 8), 
-       labels = c("Gelfand", "Bronze", "Zanella"), 
+  axis(1,
+       at = 1:9,
+       labels = rep(c("IS", "TIS", "PSIS"), 3),
+       las = 2)
+  
+  axis(1,
+       at = c(2, 5, 8),
+       labels = c("Gelfand", "Bronze", "Zanella"),
        tick = FALSE,
        line = 3)
   
-  abline(h = true_elpd,  col = "red", lwd = 2, lty = 2)
+  abline(h = true_elpd,
+         col = "red",
+         lwd = 2,
+         lty = 2)
   
-  legend("topright", legend = c("IS", "TIS", "PSIS", "Gold ELPPD"),
-    
-  fill = c(submethod.cols, NA),
-  border = c("black","black","black", NA),
-  lty = c(NA,NA,NA,2),
-  lwd = c(NA,NA,NA,2),
-  col = c(NA,NA,NA,"red"),
-  bty = "n",
-  cex = 0.9)
-  
+  legend("topright",
+         legend = c("IS", "TIS", "PSIS", "Gold ELPPD"),
+         fill = c(submethod.cols, NA),
+         border = c("black", "black", "black", NA),
+         lty = c(NA, NA, NA, 2),
+         lwd = c(NA, NA, NA, 2),
+         col = c(NA, NA, NA, "red"),
+         bty = "n",
+         cex = 0.9)
 }
+
+
+# ---------------------------------------------------------
+# Helper function to extract ELPPD values
+# ---------------------------------------------------------
+
+extract_elppd <- function(results){
+  
+  c(results$elppd_g_is,
+    results$elppd_g_tis,
+    results$elppd_g_psis,
+    
+    results$elppd_b_is,
+    results$elppd_b_tis,
+    results$elppd_b_psis,
+    
+    results$elppd_z_is,
+    results$elppd_z_tis,
+    results$elppd_z_psis)
+}
+
+
+# ---------------------------------------------------------
+# First pass: compute common y-axis limits
+# ---------------------------------------------------------
+
+all.elppd <- c()
+
+for(K in K.vec){
+  
+  load(paste0(K, "_fold_elppd_Gaussian.RData"))
+  
+  all.elppd <- c(all.elppd,
+                 extract_elppd(results),
+                 elppd_exact)
+}
+
+common.ylim <- range(all.elppd, na.rm = TRUE)
+
+
+# ---------------------------------------------------------
+# ELPD comparison plot
+# ---------------------------------------------------------
+
+pdf("Gaussian_k_fold_elpd_comparison.pdf",
+    width = 16,
+    height = 5)
+
+par(mfrow = c(1,3),
+    mar = c(6,4,3,1),
+    mgp = c(2,0.7,0),
+    tcl = -0.3)
+
+for(K in K.vec){
+  
+  load(paste0(K, "_fold_elppd_Gaussian.RData"))
+  
+  plot_elpd_panel(results = results,
+                  true_elpd = elppd_exact,
+                  title = paste0("K = ", K),
+                  ylim = common.ylim)
+}
+
+dev.off()
+
 
 
 plot_var_panel <- function(
@@ -181,9 +255,9 @@ plot_var_panel <- function(
                     results$var_z_is,
                     results$var_z_tis,
                     results$var_z_psis)
- 
+  
   # Sample variances
-
+  
   samp.var <- c(var(results$elppd_g_is),
                 var(results$elppd_g_tis),
                 var(results$elppd_g_psis),
@@ -195,8 +269,8 @@ plot_var_panel <- function(
                 var(results$elppd_z_is),
                 var(results$elppd_z_tis),
                 var(results$elppd_z_psis))
-    
-    
+  
+  
   
   ymax <- max(unlist(plot.data), samp.var)
   pos <- 1:9
@@ -241,27 +315,6 @@ plot_var_panel <- function(
          cex = 0.9)
 }
 
-
-# ELPD comparison plot
-
-pdf("Gaussian_k_fold_elpd_comparison.pdf", width = 16, height = 5)
-
-par(mfrow = c(1,3),
-    mar = c(6,4,3,1),
-    mgp = c(2,0.7,0),
-    tcl = -0.3)
-
-for(K in K.vec){
-  
-  load(paste0(K, "_fold_elppd_Gaussian.RData"))
-  
-  plot_elpd_panel(results = results,
-                  true_elpd = elppd_exact,
-                  title = paste0("K = ", K))
-    
-}
-
-dev.off()
 
 # Variance comparison plot
 

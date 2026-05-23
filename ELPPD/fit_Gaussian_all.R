@@ -20,7 +20,7 @@ source("elppd_utils.R")
 n <- 50
 d <- 10
 K <- 50
-S <- 1e5
+S <- 5e5
 
 # Hyperparameters
 
@@ -51,7 +51,7 @@ X <- dat$X
 y <- dat$y
 
 reps <- 100
-n.cores <- 50
+n.cores <- 25
 
 # Gaussian likelihood
 
@@ -114,15 +114,13 @@ results <- foreach(r = 1:reps,
                      
                      folds <- split(seq_len(n), kappa)
                      
-                     fold_sizes <- length(folds)
-                     
+                     # size of each fold
+                     fold_sizes <- lengths(folds)
                      
                      # Fold-specific powers alpha_k
-                     
                      alpha_fold <- (n - fold_sizes) / n
                      
-                     # Scalar Bronze power
-                     alpha <- mean(alpha_fold)
+                     alpha <- 1 - mean(fold_sizes) / n
                      
                      # Initial value
                      theta_init <- lm(y ~ X - 1)$coef
