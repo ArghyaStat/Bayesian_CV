@@ -236,63 +236,68 @@ for(K in K.vec){
 dev.off()
 
 
+# ---------------------------------------------------------
+# Function to plot one variance panel
+# ---------------------------------------------------------
 
-plot_var_panel <- function(
-    results,
-    title){
+plot_var_panel <- function(results,
+                           title,
+                           ylim = NULL){
   
-  
-  # Estimated asymptotic variances
-  
-  plot.data <- list(results$var_g_is,
-                    results$var_g_tis,
-                    results$var_g_psis,
-                    
-                    results$var_b_is,
-                    results$var_b_tis,
-                    results$var_b_psis,
-                    
-                    results$var_z_is,
-                    results$var_z_tis,
-                    results$var_z_psis)
+  plot.data <- list(
+    results$var_g_is,
+    results$var_g_tis,
+    results$var_g_psis,
+    
+    results$var_b_is,
+    results$var_b_tis,
+    results$var_b_psis,
+    
+    results$var_z_is,
+    results$var_z_tis,
+    results$var_z_psis
+  )
   
   # Sample variances
   
-  samp.var <- c(var(results$elppd_g_is),
-                var(results$elppd_g_tis),
-                var(results$elppd_g_psis),
-                
-                var(results$elppd_b_is),
-                var(results$elppd_b_tis),
-                var(results$elppd_b_psis),
-                
-                var(results$elppd_z_is),
-                var(results$elppd_z_tis),
-                var(results$elppd_z_psis))
+  samp.var <- c(
+    var(results$elppd_g_is),
+    var(results$elppd_g_tis),
+    var(results$elppd_g_psis),
+    
+    var(results$elppd_b_is),
+    var(results$elppd_b_tis),
+    var(results$elppd_b_psis),
+    
+    var(results$elppd_z_is),
+    var(results$elppd_z_tis),
+    var(results$elppd_z_psis)
+  )
   
-  
-  
-  ymax <- max(unlist(plot.data), samp.var)
   pos <- 1:9
   
-  boxplot(plot.data, at = pos, names = rep(c("IS", "TIS", "PSIS"),3),
+  boxplot(plot.data,
           col = box.cols,
           border = "black",
-          ylim = c(0, ymax),
           las = 2,
           outline = FALSE,
           xaxt = "n",
+          ylim = ylim,
           ylab = "Variance",
           main = title)
   
-  axis(1, at = 1:9, labels = rep(c("IS", "TIS", "PSIS"), 3), las = 2)
+  axis(1,
+       at = 1:9,
+       labels = rep(c("IS", "TIS", "PSIS"), 3),
+       las = 2)
   
-  axis(1, at = c(2, 5, 8), 
-       labels = c("Gelfand", "Bronze", "Zanella"), 
+  axis(1,
+       at = c(2, 5, 8),
+       labels = c("Gelfand", "Bronze", "Zanella"),
        tick = FALSE,
        line = 3)
   
-  # sample variance benchmark
+  # Sample variance benchmark
   
   segments(pos - 0.25,
            samp.var,
@@ -301,24 +306,83 @@ plot_var_panel <- function(
            lwd = 2,
            col = "red")
   
-  legend("topright", legend = c("IS asymp.var", 
-                                "TIS asymp.var", 
-                                "PSIS asymp.var", 
-                                "Sample var"),
-         
+  legend("topright",
+         legend = c("IS asymp.var",
+                    "TIS asymp.var",
+                    "PSIS asymp.var",
+                    "Sample var"),
          fill = c(submethod.cols, NA),
-         border = c("black","black","black", NA),
-         lty = c(NA,NA,NA,2),
-         lwd = c(NA,NA,NA,2),
-         col = c(NA,NA,NA,"red"),
+         border = c("black", "black", "black", NA),
+         lty = c(NA, NA, NA, 2),
+         lwd = c(NA, NA, NA, 2),
+         col = c(NA, NA, NA, "red"),
          bty = "n",
          cex = 0.9)
 }
 
 
-# Variance comparison plot
+# ---------------------------------------------------------
+# Helper function to extract variance values
+# ---------------------------------------------------------
 
-pdf("Gaussian_k_fold_variance_comparison.pdf", width = 16, height = 5)
+extract_var <- function(results){
+  
+  c(results$var_g_is,
+    results$var_g_tis,
+    results$var_g_psis,
+    
+    results$var_b_is,
+    results$var_b_tis,
+    results$var_b_psis,
+    
+    results$var_z_is,
+    results$var_z_tis,
+    results$var_z_psis,
+    
+    # include sample variances
+    var(results$elppd_g_is),
+    var(results$elppd_g_tis),
+    var(results$elppd_g_psis),
+    
+    var(results$elppd_b_is),
+    var(results$elppd_b_tis),
+    var(results$elppd_b_psis),
+    
+    var(results$elppd_z_is),
+    var(results$elppd_z_tis),
+    var(results$elppd_z_psis))
+}
+
+
+# ---------------------------------------------------------
+# First pass: compute common y-axis limits
+# ---------------------------------------------------------
+
+all.var <- c()
+
+for(K in K.vec){
+  
+  load(paste0(K, "_fold_elppd_Gaussian.RData"))
+  
+  all.var <- c(all.var,
+               extract_var(results))
+}
+
+common.var.ylim <- c(
+  0, 1
+  # max(all.var, na.rm = TRUE)
+)
+
+common.var.ylim[1] <- 0
+
+
+# ---------------------------------------------------------
+# Variance comparison plot
+# ---------------------------------------------------------
+
+pdf("Gaussian_k_fold_variance_comparison.pdf",
+    width = 16,
+    height = 5)
 
 par(mfrow = c(1,3),
     mar = c(6,4,3,1),
@@ -330,7 +394,8 @@ for(K in K.vec){
   load(paste0(K, "_fold_elppd_Gaussian.RData"))
   
   plot_var_panel(results = results,
-                 title = paste0("K = ", K))
+                 title = paste0("K = ", K),
+                 ylim = common.var.ylim)
 }
 
 dev.off()
