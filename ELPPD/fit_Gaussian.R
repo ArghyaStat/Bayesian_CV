@@ -264,103 +264,104 @@ tup_z_psis <- tuple_function(
 )
 
 
-# Asymptotic variance estimation
+# Asymptotic SE estimation
 
-out_g_is <- asymp.var.elppd(
-  num = tup_g_is$numerator,
-  den = tup_g_is$denominator,
-  S = S,
-  method = "mcmcse")
+# Gelfand outputs
 
-
-out_g_tis <- asymp.var.elppd(
-  num = tup_g_tis$numerator,
-  den = tup_g_tis$denominator,
-  S = S,
-  method = "mcmcse")
+out_g_is <- elppd.details(num = tup_g_is$numerator,
+                          den = tup_g_is$denominator,
+                          S = NULL,
+                          b = NULL,
+                          method = "mcmcse")
 
 
-out_g_psis <- asymp.var.elppd(
-  num = tup_g_psis$numerator,
-  den = tup_g_psis$denominator,
-  S = S,
-  method = "mcmcse")
+out_g_tis <- elppd.details(num = tup_g_tis$numerator,
+                           den = tup_g_tis$denominator,
+                           S = NULL,
+                           b = NULL,
+                           method = "mcmcse")
 
 
+out_g_psis <- elppd.details(num = tup_g_psis$numerator,
+                            den = tup_g_psis$denominator,
+                            S = NULL,
+                            b = NULL,
+                            method = "mcmcse")
 
-out_b_is <- asymp.var.elppd(
-  num = tup_b_is$numerator,
-  den = tup_b_is$denominator,
-  S = S,
-  method = "mcmcse")
+# Bronze outputs
 
+out_b_is <- elppd.details(num = tup_b_is$numerator,
+                          den = tup_b_is$denominator,
+                          S = NULL,
+                          b = NULL,
+                          method = "mcmcse")
 
-out_b_tis <- asymp.var.elppd(
-  num = tup_b_tis$numerator,
-  den = tup_b_tis$denominator,
-  S = S,
-  method = "mcmcse")
-
-
-out_b_psis <- asymp.var.elppd(
-  num = tup_b_psis$numerator,
-  den = tup_b_psis$denominator,
-  S = S,
-  method = "mcmcse")
-
+out_b_tis <- elppd.details(num = tup_b_tis$numerator,
+                           den = tup_b_tis$denominator,
+                           S = NULL,
+                           b = NULL,
+                           method = "mcmcse")
 
 
-out_z_is <- asymp.var.elppd(
-  num = tup_z_is$numerator,
-  den = tup_z_is$denominator,
-  S = S,
-  method = "mcmcse")
+out_b_psis <- elppd.details(num = tup_b_psis$numerator,
+                            den = tup_b_psis$denominator,
+                            S = NULL,
+                            b = NULL,
+                            method = "mcmcse")
+
+# Zanella outputs
+
+out_z_is <- elppd.details(num = tup_z_is$numerator,
+                          den = tup_z_is$denominator,
+                          S = NULL,
+                          b = NULL,
+                          method = "mcmcse")
 
 
-out_z_tis <- asymp.var.elppd(
-  num = tup_z_tis$numerator,
-  den = tup_z_tis$denominator,
-  S = S,
-  method = "mcmcse")
+out_z_tis <- elppd.details(num = tup_z_tis$numerator,
+                           den = tup_z_tis$denominator,
+                           S = NULL,
+                           b = NULL,
+                           method = "mcmcse")
 
 
-out_z_psis <- asymp.var.elppd(
-  num = tup_z_psis$numerator,
-  den = tup_z_psis$denominator,
-  S = S,
-  method = "mcmcse")
+out_z_psis <- elppd.details(num = tup_z_psis$numerator,
+                            den = tup_z_psis$denominator,
+                            S = NULL,
+                            b = NULL,
+                            method = "mcmcse")
 
 
 c(elppd_g_is   = out_g_is$elppd,
-  var_g_is     = out_g_is$asymp_var,
+  var_g_is     = out_g_is$asymp_se,
   
   elppd_g_tis  = out_g_tis$elppd,
-  var_g_tis    = out_g_tis$asymp_var,
+  var_g_tis    = out_g_tis$asymp_se,
   
   elppd_g_psis = out_g_psis$elppd,
-  var_g_psis   = out_g_psis$asymp_var,
+  var_g_psis   = out_g_psis$asymp_se,
   
   acc_g = fit_g$acc,
   
   elppd_b_is   = out_b_is$elppd,
-  var_b_is     = out_b_is$asymp_var,
+  var_b_is     = out_b_is$asymp_se,
   
   elppd_b_tis  = out_b_tis$elppd,
-  var_b_tis    = out_b_tis$asymp_var,
+  var_b_tis    = out_b_tis$asymp_se,
   
   elppd_b_psis = out_b_psis$elppd,
-  var_b_psis   = out_b_psis$asymp_var,
+  var_b_psis   = out_b_psis$asymp_se,
   
   acc_b = fit_b$acc,
   
   elppd_z_is   = out_z_is$elppd,
-  var_z_is     = out_z_is$asymp_var,
+  var_z_is     = out_z_is$asymp_se,
   
   elppd_z_tis  = out_z_tis$elppd,
-  var_z_tis    = out_z_tis$asymp_var,
+  var_z_tis    = out_z_tis$asymp_se,
   
   elppd_z_psis = out_z_psis$elppd,
-  var_z_psis   = out_z_psis$asymp_var,
+  var_z_psis   = out_z_psis$asymp_se,
   
   acc_z = fit_z$acc
 )

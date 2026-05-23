@@ -193,13 +193,13 @@ for (r in 1:reps) {
   }
   
   elpd_rep_z[r] <- sum(log(loocv_z))
-  
-  loocv_p <- sapply(1:n, function(i){
-    w <- psis_smooth(log_ratios = -log(lik_g[,i]), tail_frac = 0.2)
-    sum(lik_g[,i]*w)/sum(w)
-  })
-  
-  elpd_rep_p[r] <- sum(log(loocv_p))
+  # 
+  # loocv_p <- sapply(1:n, function(i){
+  #   w <- psis_smooth(log_ratios = -log(lik_g[,i]), tail_frac = 0.2)
+  #   sum(lik_g[,i]*w)/sum(w)
+  # })
+  # 
+  # elpd_rep_p[r] <- sum(log(loocv_p))
 
 }
 end_time <- Sys.time()
