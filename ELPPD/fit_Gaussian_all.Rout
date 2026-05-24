@@ -44,7 +44,7 @@ This is loo version 2.8.0
 > n <- 50
 > d <- 10
 > K <- 5
-> S <- 1e5
+> S <- 5e5
 > 
 > # Hyperparameters
 > 
@@ -90,7 +90,7 @@ This is loo version 2.8.0
 > alpha <- 1 - mean(fold_sizes) / n
 > 
 > reps <- 100
-> n.cores <- 50
+> n.cores <- 25
 > 
 > # Gaussian likelihood
 > 
@@ -412,5 +412,5 @@ This is loo version 2.8.0
 +                            "_fold_elppd_Gaussian.RData"))
 > 
 > proc.time()
-   user  system elapsed 
-  0.549   0.079 518.145 
+    user   system  elapsed 
+   0.490    0.077 2829.137 

@@ -20,7 +20,7 @@ source("elppd_utils.R")
 n <- 50
 d <- 10
 K <- 5
-S <- 1e5
+S <- 5e5
 
 # Hyperparameters
 
@@ -66,7 +66,7 @@ alpha_fold <- (n - fold_sizes) / n
 alpha <- 1 - mean(fold_sizes) / n
 
 reps <- 100
-n.cores <- 50
+n.cores <- 25
 
 # Gaussian likelihood
 
