@@ -237,12 +237,12 @@ dev.off()
 
 
 # ---------------------------------------------------------
-# Function to plot one variance panel
+# Function to plot one variance panel (Estimator Scale)
 # ---------------------------------------------------------
 
-plot_var_panel <- function(results,
-                           title,
-                           ylim = NULL){
+plot_var_panel_estimator <- function(results,
+                                     title,
+                                     ylim = NULL){
   
   plot.data <- list(
     results$var_g_is,
@@ -258,8 +258,7 @@ plot_var_panel <- function(results,
     results$var_z_psis
   )
   
-  # Sample variances
-  
+  # Sample variances of the estimators
   samp.var <- c(
     var(results$elppd_g_is),
     var(results$elppd_g_tis),
@@ -283,7 +282,7 @@ plot_var_panel <- function(results,
           outline = FALSE,
           xaxt = "n",
           ylim = ylim,
-          ylab = "Variance",
+          ylab = "Estimator Variance",
           main = title)
   
   axis(1,
@@ -298,7 +297,93 @@ plot_var_panel <- function(results,
        line = 3)
   
   # Sample variance benchmark
+  segments(pos - 0.25,
+           samp.var,
+           pos + 0.25,
+           samp.var,
+           lwd = 2,
+           col = "red")
   
+  legend("topright",
+         legend = c("IS est.var",
+                    "TIS est.var",
+                    "PSIS est.var",
+                    "Sample var"),
+         fill = c(box.cols[c(1,2,3)], NA),
+         border = c("black", "black", "black", NA),
+         lty = c(NA, NA, NA, 1),
+         lwd = c(NA, NA, NA, 2),
+         col = c(NA, NA, NA, "red"),
+         bty = "n",
+         cex = 0.9)
+}
+
+
+# ---------------------------------------------------------
+# Function to plot one variance panel (Asymptotic Scale)
+# ---------------------------------------------------------
+
+plot_var_panel_asymp <- function(results,
+                                 title,
+                                 S_mcmc = 5e5,
+                                 ylim = NULL){
+  
+  # Scale estimated variances by S_mcmc to put them on the asymptotic scale (sigma2_ELPPD)
+  plot.data <- list(
+    S_mcmc * results$var_g_is,
+    S_mcmc * results$var_g_tis,
+    S_mcmc * results$var_g_psis,
+    
+    S_mcmc * results$var_b_is,
+    S_mcmc * results$var_b_tis,
+    S_mcmc * results$var_b_psis,
+    
+    S_mcmc * results$var_z_is,
+    S_mcmc * results$var_z_tis,
+    S_mcmc * results$var_z_psis
+  )
+  
+  # Sample variances on asymptotic scale
+  samp.var <- S_mcmc * c(
+    var(results$elppd_g_is),
+    var(results$elppd_g_tis),
+    var(results$elppd_g_psis),
+    
+    var(results$elppd_b_is),
+    var(results$elppd_b_tis),
+    var(results$elppd_b_psis),
+    
+    var(results$elppd_z_is),
+    var(results$elppd_z_tis),
+    var(results$elppd_z_psis)
+  )
+  
+  pos <- 1:9
+  
+  boxplot(plot.data,
+          col = box.cols,
+          border = "black",
+          las = 2,
+          outline = FALSE,
+          xaxt = "n",
+          ylim = ylim,
+          ylab = expression(S %*% Variance),
+          main = title)
+  
+  axis(1,
+       at = 1:9,
+       labels = rep(c("IS", "TIS", "PSIS"), 3),
+       las = 2)
+  
+  axis(1,
+       at = c(2, 5, 8),
+       labels = c("Gelfand",
+                  "Bronze",
+                  "Zanella"),
+       tick = FALSE,
+       line = 3)
+  
+  # Sample variance benchmark
   segments(pos - 0.25,
            samp.var,
            pos + 0.25,
@@ -310,22 +395,34 @@ plot_var_panel <- function(results,
          legend = c("IS asymp.var",
                     "TIS asymp.var",
                     "PSIS asymp.var",
-                    "Sample var"),
-         fill = c(submethod.cols, NA),
-         border = c("black", "black", "black", NA),
-         lty = c(NA, NA, NA, 2),
-         lwd = c(NA, NA, NA, 2),
-         col = c(NA, NA, NA, "red"),
+                    "Sample var * S"),
+         fill = c(box.cols[c(1,2,3)], NA),
+         border = c("black",
+                    "black",
+                    "black",
+                    NA),
+         lty = c(NA,
+                 NA,
+                 NA,
+                 1),
+         lwd = c(NA,
+                 NA,
+                 NA,
+                 2),
+         col = c(NA,
+                 NA,
+                 NA,
+                 "red"),
          bty = "n",
          cex = 0.9)
 }
 
 
 # ---------------------------------------------------------
-# Helper function to extract variance values
+# Helper function to extract variance values (Estimator Scale)
 # ---------------------------------------------------------
 
-extract_var <- function(results){
+extract_var_estimator <- function(results){
   
   c(results$var_g_is,
     results$var_g_tis,
@@ -358,29 +455,29 @@ extract_var <- function(results){
 # First pass: compute common y-axis limits
 # ---------------------------------------------------------
 
-all.var <- c()
+all.var.estimator <- c()
+all.var.asymp <- c()
+S_mcmc <- 5e5
 
 for(K in K.vec){
   
   load(paste0(K, "_fold_elppd_Gaussian.RData"))
   
-  all.var <- c(all.var,
-               extract_var(results))
+  vars_est <- extract_var_estimator(results)
+  all.var.estimator <- c(all.var.estimator, vars_est)
+  all.var.asymp <- c(all.var.asymp, S_mcmc * vars_est)
 }
 
-common.var.ylim <- c(
-  0, 1
-  # max(all.var, na.rm = TRUE)
-)
-
-common.var.ylim[1] <- 0
+# Add some padding to the limits
+common.var.estimator.ylim <- c(0, max(all.var.estimator, na.rm = TRUE) * 1.1)
+common.var.asymp.ylim <- c(0, max(all.var.asymp, na.rm = TRUE) * 1.1)
 
 
 # ---------------------------------------------------------
-# Variance comparison plot
+# 1. Estimator Variance comparison plot
 # ---------------------------------------------------------
 
-pdf("Gaussian_k_fold_variance_comparison.pdf",
+pdf("Gaussian_k_fold_variance_estimator_comparison.pdf",
     width = 16,
     height = 5)
 
@@ -393,118 +490,16 @@ for(K in K.vec){
   
   load(paste0(K, "_fold_elppd_Gaussian.RData"))
   
-  plot_var_panel(results = results,
-                 title = paste0("K = ", K),
-                 ylim = common.var.ylim)
+  plot_var_panel_estimator(results = results,
+                           title = paste0("K = ", K),
+                           ylim = common.var.estimator.ylim)
 }
 
 dev.off()
 
-# ---------------------------------------------------------
-# Function to plot one variance panel
-# ---------------------------------------------------------
-
-plot_var_panel <- function(results,
-                           title){
-  
-  # Number of Monte Carlo replicates
-  
-  S <- length(results$elppd_g_is)
-  
-  # Estimated asymptotic variances
-  
-  plot.data <- list(
-    results$var_g_is,
-    results$var_g_tis,
-    results$var_g_psis,
-    
-    results$var_b_is,
-    results$var_b_tis,
-    results$var_b_psis,
-    
-    results$var_z_is,
-    results$var_z_tis,
-    results$var_z_psis
-  )
-  
-  # Sample variances on asymptotic scale
-  
-  samp.var <- S * c(
-    var(results$elppd_g_is),
-    var(results$elppd_g_tis),
-    var(results$elppd_g_psis),
-    
-    var(results$elppd_b_is),
-    var(results$elppd_b_tis),
-    var(results$elppd_b_psis),
-    
-    var(results$elppd_z_is),
-    var(results$elppd_z_tis),
-    var(results$elppd_z_psis)
-  )
-  
-  pos <- 1:9
-  
-  boxplot(plot.data,
-          col = box.cols,
-          border = "black",
-          las = 2,
-          outline = FALSE,
-          xaxt = "n",
-          ylab = expression(S %*% Variance),
-          main = title)
-  
-  axis(1,
-       at = 1:9,
-       labels = rep(c("IS", "TIS", "PSIS"), 3),
-       las = 2)
-  
-  axis(1,
-       at = c(2, 5, 8),
-       labels = c("Gelfand",
-                  "Bronze",
-                  "Zanella"),
-       tick = FALSE,
-       line = 3)
-  
-  # Sample variance benchmark
-  
-  segments(pos - 0.25,
-           samp.var,
-           pos + 0.25,
-           samp.var,
-           lwd = 2,
-           col = "red")
-  
-  legend("topright",
-         legend = c("IS asymp.var",
-                    "TIS asymp.var",
-                    "PSIS asymp.var",
-                    "Sample var × S"),
-         fill = c(submethod.cols, NA),
-         border = c("black",
-                    "black",
-                    "black",
-                    NA),
-         lty = c(NA,
-                 NA,
-                 NA,
-                 2),
-         lwd = c(NA,
-                 NA,
-                 NA,
-                 2),
-         col = c(NA,
-                 NA,
-                 NA,
-                 "red"),
-         bty = "n",
-         cex = 0.9)
-}
-
 
 # ---------------------------------------------------------
-# Variance comparison plot
+# 2. Asymptotic Variance comparison plot
 # ---------------------------------------------------------
 
 pdf("Gaussian_k_fold_variance_comparison.pdf",
@@ -518,11 +513,12 @@ par(mfrow = c(1,3),
 
 for(K in K.vec){
   
-  load(paste0(K,
-              "_fold_elppd_Gaussian.RData"))
+  load(paste0(K, "_fold_elppd_Gaussian.RData"))
   
-  plot_var_panel(results = results,
-                 title = paste0("K = ", K))
+  plot_var_panel_asymp(results = results,
+                       title = paste0("K = ", K),
+                       S_mcmc = S_mcmc,
+                       ylim = common.var.asymp.ylim)
 }
 
 dev.off()

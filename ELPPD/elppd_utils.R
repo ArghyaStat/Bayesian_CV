@@ -238,6 +238,9 @@ elppd.details <- function(num,
   xi <- as.numeric(Y %*% v)
   
   
+  # Note: The quantities below estimate the variance of the estimator, i.e.,
+  # Var(ELPPD_hat) = sigma2_ELPPD / S, where sigma2_ELPPD is the asymptotic
+  # variance from the CLT, and S is the number of MCMC draws.
   if(method == "our"){
     
     asymp_se <- bm.var.ls(xi, b = NULL, r = 3)/S
