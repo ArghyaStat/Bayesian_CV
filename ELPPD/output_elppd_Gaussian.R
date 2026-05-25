@@ -111,9 +111,7 @@ submethod.cols <- c("steelblue",   # IS
 
 box.cols <- rep(submethod.cols, 3)
 
-# ---------------------------------------------------------
 # Function to plot one ELPPD panel
-# ---------------------------------------------------------
 
 plot_elpd_panel <- function(results,
                             true_elpd,
@@ -172,9 +170,7 @@ plot_elpd_panel <- function(results,
 }
 
 
-# ---------------------------------------------------------
 # Helper function to extract ELPPD values
-# ---------------------------------------------------------
 
 extract_elppd <- function(results){
   
@@ -282,7 +278,8 @@ plot_var_panel_estimator <- function(results,
           outline = FALSE,
           xaxt = "n",
           ylim = ylim,
-          ylab = "Estimator Variance",
+          log = "y",
+          ylab = "Estimator Variance (log-scale)",
           main = title)
   
   axis(1,
@@ -319,9 +316,7 @@ plot_var_panel_estimator <- function(results,
 }
 
 
-# ---------------------------------------------------------
 # Function to plot one variance panel (Asymptotic Scale)
-# ---------------------------------------------------------
 
 plot_var_panel_asymp <- function(results,
                                  title,
@@ -367,7 +362,8 @@ plot_var_panel_asymp <- function(results,
           outline = FALSE,
           xaxt = "n",
           ylim = ylim,
-          ylab = expression(S %*% Variance),
+          log = "y",
+          ylab = expression(S %*% Variance ~ (log - scale)),
           main = title)
   
   axis(1,
@@ -468,9 +464,14 @@ for(K in K.vec){
   all.var.asymp <- c(all.var.asymp, S_mcmc * vars_est)
 }
 
-# Add some padding to the limits
-common.var.estimator.ylim <- c(0, max(all.var.estimator, na.rm = TRUE) * 1.1)
-common.var.asymp.ylim <- c(0, max(all.var.asymp, na.rm = TRUE) * 1.1)
+# Compute common strictly positive y-limits for log-scale boxplots
+min_val_est <- min(all.var.estimator[all.var.estimator > 0], na.rm = TRUE)
+max_val_est <- max(all.var.estimator, na.rm = TRUE)
+common.var.estimator.ylim <- c(min_val_est * 0.5, max_val_est * 1.5)
+
+min_val_asymp <- min(all.var.asymp[all.var.asymp > 0], na.rm = TRUE)
+max_val_asymp <- max(all.var.asymp, na.rm = TRUE)
+common.var.asymp.ylim <- c(min_val_asymp * 0.5, max_val_asymp * 1.5)
 
 
 # ---------------------------------------------------------
