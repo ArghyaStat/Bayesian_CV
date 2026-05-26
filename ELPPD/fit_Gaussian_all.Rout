@@ -41,10 +41,10 @@ This is loo version 2.8.0
 > # Simulation design
 > 
 > 
-> n <- 50
+> n <- 1e2
 > d <- 10
 > K <- 5
-> S <- 5e5
+> S <- 5e4
 > 
 > # Hyperparameters
 > 
@@ -90,7 +90,7 @@ This is loo version 2.8.0
 > alpha <- 1 - mean(fold_sizes) / n
 > 
 > reps <- 100
-> n.cores <- 25
+> n.cores <- 50
 > 
 > # Gaussian likelihood
 > 
@@ -152,7 +152,7 @@ This is loo version 2.8.0
 +                      # Gelfand sampler
 +                      
 +                      fit_g <- leapfrog_hmc(
-+                        epsilon = 0.16,
++                        epsilon = 0.12,
 +                        L = 10,
 +                        niters = S,
 +                        U = U_g,
@@ -170,7 +170,7 @@ This is loo version 2.8.0
 +                      # Bronze sampler
 +                      
 +                      fit_b <- leapfrog_hmc(
-+                        epsilon = 0.16,
++                        epsilon = 0.12,
 +                        L = 10,
 +                        niters = S,
 +                        U = U_b,
@@ -190,7 +190,7 @@ This is loo version 2.8.0
 +                      # Zanella sampler
 +                      
 +                      fit_z <- leapfrog_hmc(
-+                        epsilon = 0.16,
++                        epsilon = 0.12,
 +                        L = 10,
 +                        niters = S,
 +                        U = U_z,
@@ -412,5 +412,5 @@ This is loo version 2.8.0
 +                            "_fold_elppd_Gaussian.RData"))
 > 
 > proc.time()
-    user   system  elapsed 
-   0.490    0.077 2829.137 
+   user  system elapsed 
+  0.556   0.070 292.277 

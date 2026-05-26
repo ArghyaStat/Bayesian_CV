@@ -17,10 +17,10 @@ source("elppd_utils.R")
 # Simulation design
 
 
-n <- 50
+n <- 1e2
 d <- 10
 K <- 5
-S <- 1e5
+S <- 5e4
 
 # Hyperparameters
 
@@ -128,7 +128,7 @@ results <- foreach(r = 1:reps,
                      # Gelfand sampler
                      
                      fit_g <- leapfrog_hmc(
-                       epsilon = 0.16,
+                       epsilon = 0.12,
                        L = 10,
                        niters = S,
                        U = U_g,
@@ -146,7 +146,7 @@ results <- foreach(r = 1:reps,
                      # Bronze sampler
                      
                      fit_b <- leapfrog_hmc(
-                       epsilon = 0.16,
+                       epsilon = 0.12,
                        L = 10,
                        niters = S,
                        U = U_b,
@@ -166,7 +166,7 @@ results <- foreach(r = 1:reps,
                      # Zanella sampler
                      
                      fit_z <- leapfrog_hmc(
-                       epsilon = 0.16,
+                       epsilon = 0.12,
                        L = 10,
                        niters = S,
                        U = U_z,

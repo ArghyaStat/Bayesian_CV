@@ -6,8 +6,8 @@ setwd(mydir)
 
 # User inputs
 
-n <- 50
-d <- 10
+n <- 1e2
+d <- 1e1
 
 sigma2 <- 1
 tau2 <- 1e2
@@ -99,7 +99,7 @@ elppd_exact
 
 # Fold settings
 
-K.vec <- c(5, 10, 50)
+K.vec <- c(5, 10, 20, 50, 100)
 
 
 # Colors
