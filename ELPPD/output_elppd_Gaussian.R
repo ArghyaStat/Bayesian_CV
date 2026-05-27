@@ -19,8 +19,8 @@ d <- ncol(X)
 
 # Fold settings
 
-K.vec <- c(5, 10, 50)
-
+K.vec <- c(5, 10, 20, 50, 100)
+S = 1e4
 
 # Colors
 
@@ -31,7 +31,6 @@ submethod.cols <- c("steelblue",   # IS
 
 box.cols <- rep(submethod.cols, 3)
 
-<<<<<<< Updated upstream
 
 # Adaptive approach for par(mfrow)
 num_plots <- length(K.vec)
@@ -44,9 +43,7 @@ pdf_height <- 4.5 * rows
 
 
 # 1. ELPPD comparison plot
-=======
-# Function to plot one ELPPD panel
->>>>>>> Stashed changes
+
 
 plot_elpd_panel <- function(results,
                             true_elpd,
@@ -146,10 +143,10 @@ common.ylim <- range(all.elppd, na.rm = TRUE)
 # ---------------------------------------------------------
 
 pdf("Gaussian_k_fold_elpd_comparison.pdf",
-    width = 16,
-    height = 5)
+    width = pdf_width,
+    height = pdf_height)
 
-par(mfrow = c(1,3),
+par(mfrow = c(rows, cols),
     mar = c(6,4,3,1),
     mgp = c(2,0.7,0),
     tcl = -0.3)
@@ -167,13 +164,9 @@ for(K in K.vec){
 dev.off()
 
 
-<<<<<<< Updated upstream
+
 # 2. Standard Errors comparison plot
-=======
-# ---------------------------------------------------------
-# Function to plot one variance panel (Estimator Scale)
-# ---------------------------------------------------------
->>>>>>> Stashed changes
+
 
 plot_var_panel_estimator <- function(results,
                                      title,
@@ -217,7 +210,7 @@ plot_var_panel_estimator <- function(results,
           outline = FALSE,
           xaxt = "n",
           ylim = ylim,
-          # log = "y",
+          log = "y",
           ylab = "Estimator Variance (log-scale)",
           main = title)
   
@@ -255,7 +248,115 @@ plot_var_panel_estimator <- function(results,
 }
 
 
-<<<<<<< Updated upstream
+
+plot_se_panel <- function(results,
+                          title,
+                          ylim = NULL){
+  
+  plot.data <- list(
+    sqrt(results$var_g_is),
+    sqrt(results$var_g_tis),
+    sqrt(results$var_g_psis),
+    
+    sqrt(results$var_b_is),
+    sqrt(results$var_b_tis),
+    sqrt(results$var_b_psis),
+    
+    sqrt(results$var_z_is),
+    sqrt(results$var_z_tis),
+    sqrt(results$var_z_psis)
+  )
+  
+  # Sample standard deviations of the estimators
+  samp.se <- c(
+    sd(results$elppd_g_is),
+    sd(results$elppd_g_tis),
+    sd(results$elppd_g_psis),
+    
+    sd(results$elppd_b_is),
+    sd(results$elppd_b_tis),
+    sd(results$elppd_b_psis),
+    
+    sd(results$elppd_z_is),
+    sd(results$elppd_z_tis),
+    sd(results$elppd_z_psis)
+  )
+  
+  pos <- 1:9
+  
+  boxplot(plot.data,
+          col = box.cols,
+          border = "black",
+          las = 2,
+          outline = FALSE,
+          xaxt = "n",
+          ylim = ylim,
+          log = "y",
+          ylab = "Standard Error (log-scale)",
+          xlab = "Method",
+          main = title)
+  
+  axis(1,
+       at = 1:9,
+       labels = rep(c("IS", "TIS", "PSIS"), 3),
+       las = 2)
+  
+  axis(1,
+       at = c(2, 5, 8),
+       labels = c("Gelfand", "Bronze", "Zanella"),
+       tick = FALSE,
+       line = 3)
+  
+  # Sample standard deviation benchmark
+  segments(pos - 0.25,
+           samp.se,
+           pos + 0.25,
+           samp.se,
+           lwd = 2,
+           col = "red")
+  
+  legend("topright",
+         legend = c("IS est.se",
+                    "TIS est.se",
+                    "PSIS est.se",
+                    "Sample SD"),
+         fill = c(submethod.cols, NA),
+         border = c("black", "black", "black", NA),
+         lty = c(NA, NA, NA, 1),
+         lwd = c(NA, NA, NA, 2),
+         col = c(NA, NA, NA, "red"),
+         bty = "n",
+         cex = 0.9)
+}
+
+extract_se_estimator <- function(results){
+  
+  c(sqrt(results$var_g_is),
+    sqrt(results$var_g_tis),
+    sqrt(results$var_g_psis),
+    
+    sqrt(results$var_b_is),
+    sqrt(results$var_b_tis),
+    sqrt(results$var_b_psis),
+    
+    sqrt(results$var_z_is),
+    sqrt(results$var_z_tis),
+    sqrt(results$var_z_psis),
+    
+    # include sample standard deviations
+    sd(results$elppd_g_is),
+    sd(results$elppd_g_tis),
+    sd(results$elppd_g_psis),
+    
+    sd(results$elppd_b_is),
+    sd(results$elppd_b_tis),
+    sd(results$elppd_b_psis),
+    
+    sd(results$elppd_z_is),
+    sd(results$elppd_z_tis),
+    sd(results$elppd_z_psis))
+}
+
 all.se.estimator <- c()
 for(K in K.vec){
   load(paste0(K, "_fold_elppd_Gaussian.RData"))
@@ -264,7 +365,7 @@ for(K in K.vec){
 
 min_val_se <- min(all.se.estimator[all.se.estimator > 0], na.rm = TRUE)
 max_val_se <- max(all.se.estimator, na.rm = TRUE)
-common.se.ylim <- c(min_val_se * 0.8, max_val_se * 1.2)
+common.se.ylim <- c(min_val_se, max_val_se)
 
 pdf("se.pdf", width = pdf_width, height = pdf_height)
 par(mfrow = c(rows, cols),
@@ -282,13 +383,11 @@ dev.off()
 
 
 # 3. Asymptotic Variance comparison plot
-=======
-# Function to plot one variance panel (Asymptotic Scale)
->>>>>>> Stashed changes
+
 
 plot_var_panel_asymp <- function(results,
                                  title,
-                                 S_mcmc = 5e5,
+                                 S_mcmc = S,
                                  ylim = NULL){
   
   # Scale estimated variances by S_mcmc to put them on the asymptotic scale (sigma2_ELPPD)
@@ -421,7 +520,7 @@ extract_var_estimator <- function(results){
 
 all.var.estimator <- c()
 all.var.asymp <- c()
-S_mcmc <- 5e5
+S_mcmc <- S
 
 for(K in K.vec){
   
@@ -432,14 +531,13 @@ for(K in K.vec){
   all.var.asymp <- c(all.var.asymp, S_mcmc * vars_est)
 }
 
-# Compute common strictly positive y-limits for log-scale boxplots
 min_val_est <- min(all.var.estimator[all.var.estimator > 0], na.rm = TRUE)
 max_val_est <- max(all.var.estimator, na.rm = TRUE)
-common.var.estimator.ylim <- c(min_val_est * 0.5, max_val_est * 1.5)
+common.var.estimator.ylim <- c(min_val_est, max_val_est)
 
 min_val_asymp <- min(all.var.asymp[all.var.asymp > 0], na.rm = TRUE)
 max_val_asymp <- max(all.var.asymp, na.rm = TRUE)
-common.var.asymp.ylim <- c(min_val_asymp * 0.5, max_val_asymp * 1.5)
+common.var.asymp.ylim <- c(min_val_asymp, max_val_asymp)
 
 
 # ---------------------------------------------------------
@@ -447,10 +545,10 @@ common.var.asymp.ylim <- c(min_val_asymp * 0.5, max_val_asymp * 1.5)
 # ---------------------------------------------------------
 
 pdf("Gaussian_k_fold_variance_estimator_comparison.pdf",
-    width = 16,
-    height = 5)
+    width = pdf_width,
+    height = pdf_height)
 
-par(mfrow = c(1,3),
+par(mfrow = c(rows, cols),
     mar = c(6,4,3,1),
     mgp = c(2,0.7,0),
     tcl = -0.3)
@@ -472,10 +570,10 @@ dev.off()
 # ---------------------------------------------------------
 
 pdf("Gaussian_k_fold_variance_comparison.pdf",
-    width = 16,
-    height = 5)
+    width = pdf_width,
+    height = pdf_height)
 
-par(mfrow = c(1,3),
+par(mfrow = c(rows, cols),
     mar = c(6,4,3,1),
     mgp = c(2,0.7,0),
     tcl = -0.3)

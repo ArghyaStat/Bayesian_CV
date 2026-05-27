@@ -69,7 +69,7 @@ grad_log_like <- function(theta, X, y){
 
 # Gaussian prior
 
-log_prior <- function(theta, tau2){
+log_prior <- function(theta){
   
   sum(dnorm(theta,
             mean = 0,
@@ -91,8 +91,6 @@ theta_init <- lm(y ~ X - 1)$coef
 
 # Gelfand sampler
 
-log_prior_hmc <- function(theta) log_prior(theta, tau2 = tau2)
-
 fit_g <- leapfrog_hmc(
   epsilon = 0.12,
   L = 10,
@@ -103,7 +101,7 @@ fit_g <- leapfrog_hmc(
   X = X,
   y = y,
   log_like = log_like,
-  log_prior = log_prior_hmc,
+  log_prior = log_prior,
   grad_log_like = grad_log_like,
   grad_log_prior = grad_log_prior)
 
@@ -122,7 +120,7 @@ fit_b <- leapfrog_hmc(
   y = y,
   alpha = alpha,
   log_like = log_like,
-  log_prior = log_prior_hmc,
+  log_prior = log_prior,
   grad_log_like = grad_log_like,
   grad_log_prior = grad_log_prior
 )
@@ -143,7 +141,7 @@ fit_z <- leapfrog_hmc(
   y = y,
   kappa = kappa,
   log_like = log_like,
-  log_prior = log_prior_hmc,
+  log_prior = log_prior,
   grad_log_like = grad_log_like,
   grad_log_prior = grad_log_prior
 )
