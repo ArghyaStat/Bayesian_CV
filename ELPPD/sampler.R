@@ -6,20 +6,15 @@ leapfrog_hmc <- function(epsilon,
                          U,
                          grad_U,
                          x_init,
-                         M,
                          ...){
   
   d <- length(x_init)
-  
-  M_inv <- chol2inv(chol(M))
   
   x <- matrix(NA, niters, d)
   
   x[1, ] <- x_init
   
-  chol_M <- chol(M)
-  
-  p <- matrix(rnorm(niters * d), niters, d) %*% chol_M
+  p <- matrix(rnorm(niters * d), niters, d)
   
   acc <- 0
 
@@ -40,7 +35,7 @@ leapfrog_hmc <- function(epsilon,
     
     for(l in 1:L){
       
-      x_prop <- x_prop + epsilon * as.vector(M_inv %*% p_prop)
+      x_prop <- x_prop + epsilon * p_prop
       
       g <- grad_U(x_prop, ...)
       
@@ -56,9 +51,9 @@ leapfrog_hmc <- function(epsilon,
    
     # Hamiltonians
     
-    H_curr <- U(x[iter - 1, ], ...) + 0.5 * t(p[iter, ]) %*% (M_inv %*% p[iter, ])
+    H_curr <- U(x[iter - 1, ], ...) + 0.5 * sum(p[iter, ]^2)
     
-    H_prop <- U(x_prop, ... ) + 0.5 * t(p_prop) %*% (M_inv %*% p_prop)
+    H_prop <- U(x_prop, ... ) + 0.5 * sum(p_prop^2)
   
     # Accept/reject
     
