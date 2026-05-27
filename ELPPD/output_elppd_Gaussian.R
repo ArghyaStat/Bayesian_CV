@@ -121,9 +121,7 @@ pdf_width <- 5 * cols
 pdf_height <- 4.5 * rows
 
 
-# ---------------------------------------------------------
 # 1. ELPPD comparison plot
-# ---------------------------------------------------------
 
 plot_elpd_panel <- function(results,
                             true_elpd,
@@ -220,9 +218,7 @@ for(K in K.vec){
 dev.off()
 
 
-# ---------------------------------------------------------
 # 2. Standard Errors comparison plot
-# ---------------------------------------------------------
 
 plot_se_panel <- function(results,
                           title,
@@ -357,9 +353,7 @@ for(K in K.vec){
 dev.off()
 
 
-# ---------------------------------------------------------
 # 3. Asymptotic Variance comparison plot
-# ---------------------------------------------------------
 
 plot_var_panel_asymp <- function(results,
                                  title,
