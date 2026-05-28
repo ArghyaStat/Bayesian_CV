@@ -15,7 +15,7 @@ source("elppd_utils.R")
 
 # Specifications
 
-K <- 10
+K <- 20
 S <- 1e4
 
 

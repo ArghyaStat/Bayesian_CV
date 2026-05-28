@@ -111,7 +111,8 @@ tuple_function <- function(log_lik_mat,
     
     if(weight_type == "psis"){
       
-      psis_details <- loo::psis(log_w_k, r_eff = 1e2)
+      r_eff_k <- loo::relative_eff(exp(log_w_k), chain_id = rep(1, S))
+      psis_details <- loo::psis(log_w_k, r_eff = r_eff_k)
 
       w_k <- weights(psis_details, log = FALSE, normalize = FALSE)
     }
@@ -214,17 +215,35 @@ elppd.details <- function(num,
                           b = NULL,
                           method = c("our", "mcmcse")){
   
+  method <- match.arg(method)
   num <- as.matrix(num)
   den <- as.matrix(den)
-  
   
   mu_num <- colMeans(num)
   mu_den <- colMeans(den)
   
-  v <- c(1 / mu_num, -1 / mu_den)
-  
   Y <- cbind(num, den)
   S <- nrow(Y)
+  n <- ncol(num)
+  
+  se2_num <- numeric(n)
+  se2_den <- numeric(n)
+  
+  if (method == "our") {
+    for (i in seq_len(n)) {
+      se2_num[i] <- bm.var.ls(num[, i], b = b, r = 3) / S
+      se2_den[i] <- bm.var.ls(den[, i], b = b, r = 3) / S
+    }
+  } else if (method == "mcmcse") {
+    for (i in seq_len(n)) {
+      se2_num[i] <- mcmcse::mcse(num[, i])$se^2
+      se2_den[i] <- mcmcse::mcse(den[, i])$se^2
+    }
+  }
+  
+  v_num <- mu_num / (mu_num^2 + se2_num)
+  v_den <- -mu_den / (mu_den^2 + se2_den)
+  v <- c(v_num, v_den)
   
   if(S < 2){
     stop("Need at least two MCMC draws.")
