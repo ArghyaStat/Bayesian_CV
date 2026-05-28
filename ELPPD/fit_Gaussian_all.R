@@ -19,7 +19,7 @@ source("elppd_utils.R")
 # Specifications
 
 K.vec <- c(5, 10, 20, 50, 100)
-S <- 1e4
+S <- 1e5
 reps <- 1e2
 n.cores <- 50
 
