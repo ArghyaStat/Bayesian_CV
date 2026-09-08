@@ -65,17 +65,6 @@ elppd.details <- function(num, den, S = NULL, b = NULL,
     stop("Need at least two MCMC draws.")
   }
 
-  # se2_num <- numeric(n)
-  # se2_den <- numeric(n)
-  # 
-  # for (i in seq_len(n)) {
-  #   se2_num[i] <- mcmcse::mcse(num[, i])$se^2
-  #   se2_den[i] <- mcmcse::mcse(den[, i])$se^2
-  # }
-  # 
-  # v_num <- mu_num / (mu_num^2 + se2_num)
-  # v_den <- - mu_den / (mu_den^2 + se2_den)
-
   v_num <- 1/mu_num
   v_den <- -1/mu_den
   # ELPPD point estimate
