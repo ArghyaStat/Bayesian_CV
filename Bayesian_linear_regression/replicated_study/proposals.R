@@ -12,7 +12,8 @@ log_q_mix <- function(theta, X, y, kappa, log_like, log_prior) {
 }
 
 # Mixture proposal gradient
-grad_log_q_mix <- function(theta, X, y, kappa, grad_log_like, grad_log_prior, log_like) {
+grad_log_q_mix <- function(theta, X, y, kappa, grad_log_like, 
+                           grad_log_prior, log_like) {
   
   if (is.null(kappa) || length(kappa) == 0 || max(kappa) < 1) {
     stop("kappa must be a non-empty vector of positive integers (fold allocations).")
@@ -40,7 +41,8 @@ U_mix <- function(theta, X, y, kappa, log_like, log_prior, ...) {
                log_like = log_like, log_prior = log_prior)
 }
 
-grad_mix <- function(theta, X, y, kappa, grad_log_like, grad_log_prior, log_like, ...) {
+grad_mix <- function(theta, X, y, kappa, grad_log_like, 
+                     grad_log_prior, log_like, ...) {
   
   - grad_log_q_mix(theta = theta, X = X, y = y, kappa = kappa,
                    grad_log_like = grad_log_like, 
