@@ -1,21 +1,10 @@
-## ==============================================================================
-## output_nonreps.R
 ## Bayesian Linear Regression Case Study: n = 500, d = 250 (Mixture Gibbs Sampler)
-##
 ## Non-replicated Study Analysis:
-##   * Dynamically learns S_star, S_max, S_step from M1_outputs.RData & M2_outputs.RData
-##   * Data-adaptive x-axis and y-axis limits/ticks for ELPPD and ESS
 ##   * Figure 1 (Side-by-Side):
 ##       - Panel (a): Dynamic ELPPD tracking with pointwise 95% asymptotic CIs,
 ##                    exact analytical reference lines, and empirical separation point S_sep
 ##       - Panel (b): Single-chain Effective Sample Size (ESS) trajectories for M1 & M2
 ##                    relative to sequential stopping boundaries (eps = 0.05 and 0.025)
-##   * Figure 1 Standalone: High-resolution single-panel ELPPD tracking & separation
-##   * Figure 2 (Efficiency Tracking):
-##       - Panel (a): Raw effective sample sizes ESS_elppd and minESS_beta
-##       - Panel (b): Relative efficiency ratios widehat(ESS) / S
-##   * High-resolution PNG previews generated alongside publication PDFs
-## ==============================================================================
 
 rm(list = ls())
 gc()
@@ -23,10 +12,6 @@ gc()
 if (requireNamespace("this.path", quietly = TRUE)) {
   setwd(this.path::here())
 }
-
-# ==============================================================================
-# 1. Load Non-Replicated Datasets and Learn Grid Parameters
-# ==============================================================================
 
 if (!file.exists("M1_outputs.RData")) stop("M1_outputs.RData not found in current directory.")
 if (!file.exists("M2_outputs.RData")) stop("M2_outputs.RData not found in current directory.")
@@ -52,19 +37,6 @@ S_star <- min(S_vals)
 S_max  <- max(S_vals)
 S_step <- if (length(S_vals) > 1) diff(S_vals)[1] else NA_real_
 n_checkpoints <- length(S_vals)
-
-cat("==================================================================\n")
-cat("Non-Replicated Output Analysis (Mixture Gibbs Sampler)\n")
-cat("==================================================================\n")
-cat(sprintf("Dimension d = %d, Sample size n = %d, Signal eta = %.2f\n", d_val, n_val, eta_val))
-cat(sprintf("Iterations: S_star = %s, S_max = %s, S_step = %s (%d checkpoints)\n",
-            format(S_star, big.mark = ","),
-            format(S_max,  big.mark = ","),
-            format(S_step, big.mark = ","),
-            n_checkpoints))
-cat(sprintf("Exact LOO-ELPD : M1 = %.4f, M2 = %.4f (Delta = %.4f)\n",
-            nr_elpd_M1, nr_elpd_M2, nr_elpd_M1 - nr_elpd_M2))
-cat(sprintf("HMC acceptance : M1 = %.4f, M2 = %.4f\n\n", acc_M1, acc_M2))
 
 # ==============================================================================
 # 2. Asymptotic Confidence Intervals & Data-Adaptive Separation Detection
