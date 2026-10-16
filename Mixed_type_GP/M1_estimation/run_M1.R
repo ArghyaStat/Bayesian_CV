@@ -11,9 +11,7 @@ invisible(lapply(libraries, library, character.only = TRUE))
 if (requireNamespace("this.path", quietly = TRUE)) {
   setwd(this.path::here())
 }
-makevars_candidates <- c("../../Makevars", "../Makevars", "Makevars")
-makevars_file <- makevars_candidates[file.exists(makevars_candidates)][1]
-if (!is.na(makevars_file)) Sys.setenv(R_MAKEVARS_USER = normalizePath(makevars_file))
+
 
 source("vecchia.R")
 source("aux_functions_joint.R")
@@ -25,15 +23,16 @@ Rcpp::sourceCpp("gibbs_kfold_joint.cpp")
 k.folds    <- 10
 m          <- 20
 t.index    <- 140
-S_star     <- 1e2
-S_max      <- 1e3
-S_step     <- 1e2
+S_star     <- 5e3
+S_max      <- 1e5
+S_step     <- 5e3
 S_vals     <- seq(S_star, S_max, by = S_step)
 tuning.phi <- 1e-2
 
 # ---- Data & Model Specs ------------------------------------------------------
 
-data.file <- if (file.exists("data_full.RData")) "data_full.RData" else file.path("..", "data_full.RData")
+data.candidates <- c("data_full.RData", "../data_full.RData", "../../data_full.RData")
+data.file <- data.candidates[file.exists(data.candidates)][1]
 load(data.file, eva.data <- new.env())
 full.data.DF <- eva.data$data_DF
 
@@ -59,21 +58,6 @@ fold.ord <- fold_id[ord]
 NNarray <- neighbor_matrix(locs.ord, m)
 storage.mode(NNarray) <- "integer"
 
-# Precompute test nearest neighbors for out-of-sample fold prediction
-test_nn_list <- vector("list", k.folds)
-for (k in seq_len(k.folds)) {
-  test_idx  <- which(fold.ord == k) - 1
-  train_idx <- which(fold.ord != k) - 1
-  knn <- get.knnx(locs.ord[train_idx + 1, , drop = FALSE],
-                  locs.ord[test_idx + 1, , drop = FALSE],
-                  k = m)
-  test_nn_list[[k]] <- list(
-    test_idx = as.integer(test_idx),
-    nn_idx   = matrix(as.integer(train_idx[knn$nn.index]),
-                      nrow = length(test_idx), ncol = m)
-  )
-}
-
 b_phi <- max(rdist(locs.ord)) / 3
 
 M.prior  <- matrix(0, p, q)
@@ -88,17 +72,15 @@ beta   <- solve(crossprod(X.ord)) %*% crossprod(X.ord, W.init)
 # Variogram-based initialization for phi and nu
 R.chol   <- chol(Sigma)
 W.white  <- W.init %*% solve(R.chol)
-# df.joint <- data.frame(lon = rep(locs.ord[, 1], q), lat = rep(locs.ord[, 2], q),
-#                        values = as.vector(W.white))
-# coordinates(df.joint) <- ~ lon + lat
-# emp.vario.joint <- variogram(values ~ 1, df.joint)
-# init.vgm <- vgm(model = "Mat", psill = var(df.joint$values),
-#                 range = median(emp.vario.joint$dist), nugget = 0)
-# fit.vgm <- fit.variogram(emp.vario.joint, model = init.vgm, fit.sills = TRUE)
-# phi <- fit.vgm$range[2]
-# nu  <- fit.vgm$kappa[2]
-phi <- 2
-nu <- 0.5
+df.joint <- data.frame(lon = rep(locs.ord[, 1], q), lat = rep(locs.ord[, 2], q),
+                       values = as.vector(W.white))
+coordinates(df.joint) <- ~ lon + lat
+emp.vario.joint <- variogram(values ~ 1, df.joint)
+init.vgm <- vgm(model = "Mat", psill = var(df.joint$values),
+                range = median(emp.vario.joint$dist), nugget = 0)
+fit.vgm <- fit.variogram(emp.vario.joint, model = init.vgm, fit.sills = TRUE)
+phi <- fit.vgm$range[2]
+nu  <- fit.vgm$kappa[2]
 
 cat(sprintf("Model M1 setup: N = %d, q = %d, K = %d, phi0 = %.4f, nu = %.3f\n",
             N, q, k.folds, phi, nu))
@@ -108,7 +90,6 @@ cat(sprintf("Model M1 setup: N = %d, q = %d, K = %d, phi0 = %.4f, nu = %.3f\n",
 gibbs_args <- list(
   Y = Y.ord, X = X.ord, locs = locs.ord, NNarray = NNarray,
   fold = as.integer(fold.ord), K = k.folds,
-  test_nn_list = test_nn_list,
   family = family, family_par = rep(NA_real_, q), nu = nu,
   M_prior = M.prior, V_prior = V.prior, S_prior = S.prior, df_prior = df.prior,
   b_phi = b_phi, tuning_phi = tuning.phi
@@ -117,7 +98,7 @@ gibbs_args <- list(
 cat(sprintf("Running Gibbs sampler on q_mix: S = %d...\n", S_max))
 
 t_start <- Sys.time()
-fit_main <- do.call(gibbs_kfold_joint_cpp, c(gibbs_args, list(
+fit_main <- do.call(gibbs_joint, c(gibbs_args, list(
   phi_init = phi, beta_init = beta, Sigma_init = Sigma,
   W_init = W.init, niters = S_max
 )))

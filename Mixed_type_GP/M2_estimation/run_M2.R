@@ -33,7 +33,8 @@ tuning.phi <- 1e-2
 
 # ---- Data & Model Specs ------------------------------------------------------
 
-data.file <- if (file.exists("data_full.RData")) "data_full.RData" else file.path("..", "data_full.RData")
+data.candidates <- c("data_full.RData", "../data_full.RData", "../../data_full.RData")
+data.file <- data.candidates[file.exists(data.candidates)][1]
 load(data.file, eva.data <- new.env())
 full.data.DF <- eva.data$data_DF
 
@@ -58,21 +59,6 @@ fold.ord <- fold_id[ord]
 
 NNarray <- neighbor_matrix(locs.ord, m)
 storage.mode(NNarray) <- "integer"
-
-# Precompute test nearest neighbors for out-of-sample fold prediction
-test_nn_list <- vector("list", k.folds)
-for (k in seq_len(k.folds)) {
-  test_idx  <- which(fold.ord == k) - 1
-  train_idx <- which(fold.ord != k) - 1
-  knn <- get.knnx(locs.ord[train_idx + 1, , drop = FALSE],
-                  locs.ord[test_idx + 1, , drop = FALSE],
-                  k = m)
-  test_nn_list[[k]] <- list(
-    test_idx = as.integer(test_idx),
-    nn_idx   = matrix(as.integer(train_idx[knn$nn.index]),
-                      nrow = length(test_idx), ncol = m)
-  )
-}
 
 b_phi <- max(rdist(locs.ord)) / 3
 
@@ -104,7 +90,6 @@ cat(sprintf("Model M2 setup: N = %d, q = %d, K = %d, phi0 = %.4f, nu = %.3f\n",
 gibbs_args <- list(
   Y = Y.ord, X = X.ord, locs = locs.ord, NNarray = NNarray,
   fold = as.integer(fold.ord), K = k.folds,
-  test_nn_list = test_nn_list,
   family = family, family_par = rep(NA_real_, q), nu = nu,
   M_prior = M.prior, V_prior = V.prior, a_prior = a.prior, b_prior = b.prior,
   b_phi = b_phi, tuning_phi = tuning.phi
@@ -112,7 +97,7 @@ gibbs_args <- list(
 
 cat(sprintf("Running Gibbs sampler on q_mix: S = %d...\n", S_max))
 t_start <- Sys.time()
-fit_main <- do.call(gibbs_kfold_sep_cpp, c(gibbs_args, list(
+fit_main <- do.call(gibbs_sep, c(gibbs_args, list(
   phi_init = phi, beta_init = beta, sig2_init = sig2,
   W_init = W.init, niters = S_max
 )))
