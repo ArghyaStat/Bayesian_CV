@@ -435,6 +435,27 @@ static arma::mat update_beta(const RegStats& rs, const arma::mat& cholSigma) {
 //   return W;
 // }
 
+static arma::sp_mat vecchia_whitener(const Vecchia& V, const Coeff& C) {
+  arma::uword nnz = V.N;
+  for (const auto& b : C.B) nnz += b.size();
+  arma::umat positions(2, nnz);
+  arma::vec values(nnz);
+  arma::uword t = 0;
+  for (int i = 0; i < V.N; ++i) {
+    if (!(C.r[i] > 0.0) || !std::isfinite(C.r[i]))
+      stop("Nonpositive or nonfinite Vecchia conditional variance.");
+    const double scale = 1.0 / std::sqrt(C.r[i]);
+    positions(0, t) = i; positions(1, t) = i; values(t++) = scale;
+    int b = 0;
+    for (std::size_t a = 0; a < V.nb[i].size(); ++a) {
+      if ((int)a == V.self[i]) continue;
+      positions(0, t) = i; positions(1, t) = V.nb[i][a];
+      values(t++) = -C.B[i][b++] * scale;
+    }
+  }
+  return arma::sp_mat(positions, values, V.N, V.N);
+}
+
 static arma::mat draw_heldout(const arma::mat& W, const arma::mat& M,
                               const arma::mat& Sigma, const Vecchia& V,
                               const Coeff& C, const arma::uvec& held) {
