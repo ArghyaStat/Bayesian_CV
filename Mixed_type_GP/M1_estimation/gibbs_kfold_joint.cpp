@@ -381,58 +381,165 @@ static arma::mat update_beta(const RegStats& rs, const arma::mat& cholSigma) {
 //   ∝ p(y_{-D_k} | W_{-D_k}) p(W_{D_k} | W_{-D_k}, .) p(W_{-D_k} | .)
 // Elliptical slice sampling column by column (W_j | W_{-j}); the likelihood
 // only includes training sites, so W_{D_k} moves under its GP conditional.
-static arma::mat update_W(const arma::mat& W_cur, const arma::mat& M, const arma::mat& Sigma,
-                          const Vecchia& V, const Coeff& C, const arma::mat& Y,
+// static arma::mat update_W(const arma::mat& W_cur, const arma::mat& M, const arma::mat& Sigma,
+//                           const Vecchia& V, const Coeff& C, const arma::mat& Y,
+//                           const std::vector<int>& fam, const std::vector<double>& par,
+//                           const std::vector<char>& train) {
+//   const int N = W_cur.n_rows, q = W_cur.n_cols;
+//   arma::mat W = W_cur;                                   // local copy, returned
+//   const arma::mat nu = vecchia_prior_draw(rnorm_mat(N, q), V, C);
+// 
+//   arma::vec mu(N), cand(N);
+// 
+//   for (int j = 0; j < q; ++j) {
+//     // column j | other columns:  N(mu, Scond * K_phi)
+//     double Scond = Sigma(j, j);
+//     arma::vec cvec;
+//     arma::uvec minus;
+//     if (q > 1) {
+//       minus.set_size(q - 1);
+//       int c = 0;
+//       for (int l = 0; l < q; ++l) if (l != j) minus(c++) = l;
+//       const arma::vec Smj = Sigma.submat(minus, arma::uvec({(arma::uword)j}));
+//       cvec  = arma::solve(Sigma.submat(minus, minus), Smj);
+//       Scond = Sigma(j, j) - arma::dot(Smj, cvec);
+//     }
+//     for (int i = 0; i < N; ++i) {
+//       double m = M(i, j);
+//       for (int c = 0; c < q - 1; ++c) m += (W(i, minus(c)) - M(i, minus(c))) * cvec(c);
+//       mu(i) = m;
+//     }
+//     const double sc = std::sqrt(Scond);
+// 
+//     auto ll_col = [&](const arma::vec& col) {
+//       double s = 0.0;
+//       for (int i = 0; i < N; ++i)
+//         if (train[i]) s += loglik1(fam[j], par[j], Y(i, j), col(i));
+//       return s;
+//     };
+// 
+//     const arma::vec cur = W.col(j);
+//     const double logy = ll_col(cur) + std::log(unif_rand());
+// 
+//     double gam  = unif_rand() * 2.0 * M_PI;
+//     double gmin = gam - 2.0 * M_PI, gmax = gam;
+//     for (int it = 0; it < 1000; ++it) {
+//       const double cg = std::cos(gam), sg = std::sin(gam);
+//       for (int i = 0; i < N; ++i)
+//         cand(i) = mu(i) + (cur(i) - mu(i)) * cg + sc * nu(i, j) * sg;
+//       if (ll_col(cand) > logy) { W.col(j) = cand; break; }
+//       if (gam < 0.0) gmin = gam; else gmax = gam;
+//       gam = gmin + (gmax - gmin) * unif_rand();
+//     }
+//   }
+//   return W;
+// }
+
+static arma::mat draw_heldout(const arma::mat& W, const arma::mat& M,
+                              const arma::mat& Sigma, const Vecchia& V,
+                              const Coeff& C, const arma::uvec& held) {
+  if (held.is_empty()) return W;
+  const arma::sp_mat U = vecchia_whitener(V, C); // Q = U' U
+  // Extract held-out columns of U without forming a dense N x N matrix.
+  arma::uword nnz = 0;
+  for (arma::uword h = 0; h < held.n_elem; ++h)
+    for (auto it = U.begin_col(held(h)); it != U.end_col(held(h)); ++it) ++nnz;
+  arma::umat positions(2, nnz);
+  arma::vec values(nnz);
+  arma::uword t = 0;
+  for (arma::uword h = 0; h < held.n_elem; ++h) {
+    for (auto it = U.begin_col(held(h)); it != U.end_col(held(h)); ++it) {
+      positions(0, t) = it.row(); positions(1, t) = h; values(t++) = *it;
+    }
+  }
+  const arma::sp_mat UH(positions, values, V.N, held.n_elem);
+  const arma::mat QHH(UH.t() * UH);
+  const arma::mat R = arma::chol(QHH, "upper");
+  arma::mat E = W - M;
+  E.rows(held).zeros();
+  const arma::mat rhs = UH.t() * (U * E); // Q_HT (W_T - M_T)
+  const arma::mat mean = M.rows(held) - arma::solve(arma::trimatu(R),
+                                arma::solve(arma::trimatl(R.t()), rhs));
+  const arma::mat noise = arma::solve(arma::trimatu(R),
+                                      rnorm_mat(held.n_elem, W.n_cols));
+  arma::mat out = W;
+  out.rows(held) = mean + noise * arma::chol(Sigma, "upper");
+  return out;
+}
+
+static arma::mat update_W(const arma::mat& W_cur, const arma::mat& M,
+                          const arma::mat& Sigma, const Vecchia& V,
+                          const Coeff& C, const arma::mat& Y,
                           const std::vector<int>& fam, const std::vector<double>& par,
                           const std::vector<char>& train) {
   const int N = W_cur.n_rows, q = W_cur.n_cols;
-  arma::mat W = W_cur;                                   // local copy, returned
-  const arma::mat nu = vecchia_prior_draw(rnorm_mat(N, q), V, C);
-
-  arma::vec mu(N), cand(N);
-
-  for (int j = 0; j < q; ++j) {
-    // column j | other columns:  N(mu, Scond * K_phi)
-    double Scond = Sigma(j, j);
-    arma::vec cvec;
-    arma::uvec minus;
-    if (q > 1) {
-      minus.set_size(q - 1);
-      int c = 0;
-      for (int l = 0; l < q; ++l) if (l != j) minus(c++) = l;
-      const arma::vec Smj = Sigma.submat(minus, arma::uvec({(arma::uword)j}));
-      cvec  = arma::solve(Sigma.submat(minus, minus), Smj);
-      Scond = Sigma(j, j) - arma::dot(Smj, cvec);
-    }
-    for (int i = 0; i < N; ++i) {
-      double m = M(i, j);
-      for (int c = 0; c < q - 1; ++c) m += (W(i, minus(c)) - M(i, minus(c))) * cvec(c);
-      mu(i) = m;
-    }
-    const double sc = std::sqrt(Scond);
-
-    auto ll_col = [&](const arma::vec& col) {
-      double s = 0.0;
-      for (int i = 0; i < N; ++i)
-        if (train[i]) s += loglik1(fam[j], par[j], Y(i, j), col(i));
-      return s;
-    };
-
-    const arma::vec cur = W.col(j);
-    const double logy = ll_col(cur) + std::log(unif_rand());
-
-    double gam  = unif_rand() * 2.0 * M_PI;
-    double gmin = gam - 2.0 * M_PI, gmax = gam;
-    for (int it = 0; it < 1000; ++it) {
-      const double cg = std::cos(gam), sg = std::sin(gam);
-      for (int i = 0; i < N; ++i)
-        cand(i) = mu(i) + (cur(i) - mu(i)) * cg + sc * nu(i, j) * sg;
-      if (ll_col(cand) > logy) { W.col(j) = cand; break; }
-      if (gam < 0.0) gmin = gam; else gmax = gam;
-      gam = gmin + (gmax - gmin) * unif_rand();
+  std::vector<arma::uword> tv, hv;
+  for (int i = 0; i < N; ++i) (train[i] ? tv : hv).push_back(i);
+  const arma::uvec training(tv), held(hv);
+  arma::mat W = W_cur;
+  if (!training.is_empty()) {
+    // Restrict a full prior draw to T: its covariance is the marginal K_TT,
+    // not the conditional covariance given the old held-out field.
+    const arma::mat directions = vecchia_prior_draw(rnorm_mat(N, q), V, C);
+    for (int j = 0; j < q; ++j) {
+      arma::vec mu = M.col(j);
+      double Scond = Sigma(j, j);
+      if (q > 1) {
+        arma::uvec minus(q - 1);
+        int c = 0;
+        for (int l = 0; l < q; ++l) if (l != j) minus(c++) = l;
+        const arma::vec Smj = Sigma.submat(minus, arma::uvec({(arma::uword)j}));
+        const arma::vec weights = arma::solve(Sigma.submat(minus, minus), Smj);
+        Scond -= arma::dot(Smj, weights);
+        for (arma::uword t = 0; t < training.n_elem; ++t) {
+          const arma::uword i = training(t);
+          for (arma::uword c = 0; c < minus.n_elem; ++c)
+            mu(i) += (W(i, minus(c)) - M(i, minus(c))) * weights(c);
+        }
+      }
+      if (!(Scond > 0.0) || !std::isfinite(Scond))
+        stop("Nonpositive or nonfinite conditional response variance.");
+      const double sc = std::sqrt(Scond);
+      auto ll_col = [&](const arma::vec& col) {
+        double ll = 0.0;
+        for (arma::uword t = 0; t < training.n_elem; ++t) {
+          const arma::uword i = training(t);
+          ll += loglik1(fam[j], par[j], Y(i, j), col(i));
+        }
+        return ll;
+      };
+      const arma::vec cur = W.col(j);
+      const double ll_cur = ll_col(cur);
+      if (!std::isfinite(ll_cur)) stop("Nonfinite training log likelihood in latent update.");
+      const double logy = ll_cur + std::log(unif_rand());
+      double angle = unif_rand() * 2.0 * M_PI;
+      double lower = angle - 2.0 * M_PI, upper = angle;
+      arma::vec candidate = cur;
+      // This is a slice-bracket search, not 1000 posterior iterations.
+      // Continue until acceptance; allow the user to interrupt long searches.
+      unsigned int attempts = 0;
+      while (true) {
+        if ((attempts++ & 63u) == 0u) Rcpp::checkUserInterrupt();
+        for (arma::uword t = 0; t < training.n_elem; ++t) {
+          const arma::uword i = training(t);
+          candidate(i) = mu(i) + (cur(i) - mu(i)) * std::cos(angle)
+            + sc * directions(i, j) * std::sin(angle);
+        }
+        const double ll = ll_col(candidate);
+        if (std::isnan(ll)) stop("NaN training log likelihood in slice search.");
+        if (ll > logy) {
+          for (arma::uword t = 0; t < training.n_elem; ++t)
+            W(training(t), j) = candidate(training(t));
+          break;
+        }
+        if (angle < 0.0) lower = angle; else upper = angle;
+        angle = lower + (upper - lower) * unif_rand();
+      }
     }
   }
-  return W;
+  // Refresh ALL held-out response columns jointly from their Gaussian
+  // conditional, immediately after the marginalized training update.
+  return draw_heldout(W, M, Sigma, V, C, held);
 }
 
 // ---------------------------------------------------------------- main sampler
