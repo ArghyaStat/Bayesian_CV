@@ -124,6 +124,16 @@ history <- list(
   minESS_xi = numeric()
 )
 
+history$fold_log_pred <- matrix(
+  NA_real_,
+  nrow = length(S_vals),
+  ncol = k.folds,
+  dimnames = list(
+    as.character(S_vals),
+    paste0("fold_", seq_len(k.folds))
+  )
+)
+
 for (S_curr in S_vals) {
   tup <- tuple_function(fold_ll, S_curr = S_curr)
   out <- eljpd.details(
@@ -137,6 +147,8 @@ for (S_curr in S_vals) {
   history$asymp_se  <- c(history$asymp_se,  out$asymp_se)
   history$ess_elpd  <- c(history$ess_elpd,  out$ess_elpd)
   history$minESS_xi <- c(history$minESS_xi, out$minESS_xi)
+  history$fold_log_pred[match(S_curr, S_vals), ] <-
+  out$fold_log_pred
 }
 
 print(data.frame(
