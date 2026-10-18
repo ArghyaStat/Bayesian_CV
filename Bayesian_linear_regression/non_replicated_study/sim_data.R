@@ -66,8 +66,7 @@ sim_data <- function(n, d, s, eta, sigma2,
   epsilon <- rnorm(n, mean = 0, sd = sqrt(sigma2))
 
   make_y <- function(b) {
-    bt              <- beta_true
-    bt[dropped_col] <- b
+    bt <- beta_true; bt[dropped_col] <- b
     as.vector(X %*% bt + epsilon)
   }
   
@@ -120,7 +119,7 @@ if (sys.nframe() == 0) {
   sim_dat <- sim_data(n = n, d = d, s = s, eta = eta, sigma2 = sigma2,
                       target_delta = target_delta, tau2 = tau2)
 
-  save(sim_dat, file = "sim_data.RData")
-  cat(sprintf("Generated sim_data.RData (d=%d, n=%d, eta=%.2f, delta_exact=%.4f)\n",
-              d, n, eta, sim_dat$delta_exact))
+  save(sim_dat, file = sprintf("sim_data_d%d.RData", d))
+  cat(sprintf("Generated sim_data_d%d.RData (delta_exact = %.4f)\n",
+              d, sim_dat$delta_exact))
 }

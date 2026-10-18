@@ -66,7 +66,7 @@ tuple_function <- function(fold_loglik, S_curr = NULL) {
   )
 }
 
-}
+
 
 # ELPD point estimate + Monte Carlo diagnostics
 eljpd.details <- function(num, den, log_c = 0, samples = NULL) {
