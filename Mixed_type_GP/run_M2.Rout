@@ -1,0 +1,258 @@
+
+R version 4.5.1 (2025-06-13) -- "Great Square Root"
+Copyright (C) 2025 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # Model M2 (Separate Covariance): K-fold ELJPD via Gibbs sampling from q_mix
+> 
+> rm(list = ls())
+> invisible(gc())
+> set.seed(35)
+> 
+> libraries <- c("fields", "FNN", "mcmcse", "coda", "sp", "gstat", "this.path",
++                "Rcpp", "RcppArmadillo")
+> invisible(lapply(libraries, library, character.only = TRUE))
+Loading required package: spam
+Spam version 2.11-1 (2025-01-20) is loaded.
+Type 'help( Spam)' or 'demo( spam)' for a short introduction 
+and overview of this package.
+Help for individual functions is also obtained by adding the
+suffix '.spam' to the function name, e.g. 'help( chol.spam)'.
+
+Attaching package: ‘spam’
+
+The following objects are masked from ‘package:base’:
+
+    backsolve, forwardsolve
+
+Loading required package: viridisLite
+
+Try help(fields) to get started.
+> 
+> if (requireNamespace("this.path", quietly = TRUE)) {
++   setwd(this.path::here())
++ }
+> makevars_candidates <- c("../../Makevars", "../Makevars", "Makevars")
+> makevars_file <- makevars_candidates[file.exists(makevars_candidates)][1]
+> if (!is.na(makevars_file)) Sys.setenv(R_MAKEVARS_USER = normalizePath(makevars_file))
+> 
+> source("vecchia.R")
+> source("aux_functions_sep.R")
+> source("eljpd.utils.R")
+> Rcpp::sourceCpp("gibbs_kfold_sep.cpp")
+> 
+> # ---- Parameters --------------------------------------------------------------
+> 
+> k.folds    <- 10
+> m          <- 20
+> t.index    <- 140
+> S_star     <- 1e3
+> S_max      <- 3e4
+> S_step     <- 1e3
+> S_vals     <- seq(S_star, S_max, by = S_step)
+> tuning.phi <- 1e-2
+> 
+> # ---- Data & Model Specs ------------------------------------------------------
+> 
+> data.candidates <- c("data_full.RData", "../data_full.RData", "../../data_full.RData")
+> data.file <- data.candidates[file.exists(data.candidates)][1]
+> load(data.file, eva.data <- new.env())
+> full.data.DF <- eva.data$data_DF
+> 
+> N.s <- 3503
+> spatial.subset <- seq(N.s * (t.index - 1) + 1, N.s * t.index)
+> data <- full.data.DF[spatial.subset, ]
+> 
+> locations <- cbind(data$lon, data$lat)
+> X <- cbind(1, locations)
+> Y <- cbind(log(1 + data$BA), data$CNT)
+> N <- nrow(Y); p <- ncol(X); q <- ncol(Y)
+> family <- c("Gaussian", "Poisson")
+> 
+> fold_id <- sample(rep(seq_len(k.folds), length.out = N))
+> 
+> # Vecchia ordering across all locations
+> ord      <- max_min(locations)
+> locs.ord <- locations[ord, , drop = FALSE]
+> X.ord    <- X[ord, , drop = FALSE]
+> Y.ord    <- Y[ord, , drop = FALSE]
+> fold.ord <- fold_id[ord]
+> 
+> NNarray <- neighbor_matrix(locs.ord, m)
+> storage.mode(NNarray) <- "integer"
+> 
+> b_phi <- max(rdist(locs.ord)) / 3
+> 
+> M.prior <- matrix(0, p, q)
+> V.prior <- 1e2 * diag(p)
+> a.prior <- 1e-2
+> b.prior <- 1e-2
+> 
+> W.init <- cbind(Y.ord[, 1], log(1 + Y.ord[, 2]))
+> beta   <- solve(crossprod(X.ord)) %*% crossprod(X.ord, W.init)
+> sig2   <- apply(W.init - X.ord %*% beta, 2, var)
+> 
+> # Variogram-based initialization for phi and nu
+> df.sep <- data.frame(lon = locs.ord[, 1], lat = locs.ord[, 2],
++                      values = W.init[, 1] / sqrt(sig2[1]))
+> coordinates(df.sep) <- ~ lon + lat
+> emp.vario.sep <- variogram(values ~ 1, df.sep)
+> init.vgm <- vgm(model = "Mat", psill = var(df.sep$values),
++                 range = median(emp.vario.sep$dist), nugget = 0)
+> fit.vgm <- fit.variogram(emp.vario.sep, model = init.vgm, fit.sills = TRUE)
+> phi <- fit.vgm$range[2]
+> nu  <- fit.vgm$kappa[2]
+> 
+> cat(sprintf("Model M2 setup: N = %d, q = %d, K = %d, phi0 = %.4f, nu = %.3f\n",
++             N, q, k.folds, phi, nu))
+Model M2 setup: N = 3503, q = 2, K = 10, phi0 = 2.4991, nu = 0.500
+> 
+> # ---- Gibbs Sampling on q_mix -------------------------------------------------
+> 
+> gibbs_args <- list(
++   Y = Y.ord, X = X.ord, locs = locs.ord, NNarray = NNarray,
++   fold = as.integer(fold.ord), K = k.folds,
++   family = family, family_par = rep(NA_real_, q), nu = nu,
++   M_prior = M.prior, V_prior = V.prior, a_prior = a.prior, b_prior = b.prior,
++   b_phi = b_phi, tuning_phi = tuning.phi
++ )
+> 
+> cat(sprintf("Running Gibbs sampler on q_mix: S = %d...\n", S_max))
+Running Gibbs sampler on q_mix: S = 30000...
+> t_start <- Sys.time()
+> fit_main <- do.call(gibbs_sep, c(gibbs_args, list(
++   phi_init = phi, beta_init = beta, sig2_init = sig2,
++   W_init = W.init, niters = S_max
++ )))
+Progress: 10% (3000 / 30000) - Elapsed: 13.77 mins
+Progress: 20% (6000 / 30000) - Elapsed: 27.58 mins
+Progress: 30% (9000 / 30000) - Elapsed: 41.42 mins
+Progress: 40% (12000 / 30000) - Elapsed: 55.30 mins
+Progress: 50% (15000 / 30000) - Elapsed: 69.20 mins
+Progress: 60% (18000 / 30000) - Elapsed: 83.09 mins
+Progress: 70% (21000 / 30000) - Elapsed: 96.98 mins
+Progress: 80% (24000 / 30000) - Elapsed: 110.88 mins
+Progress: 90% (27000 / 30000) - Elapsed: 124.77 mins
+Progress: 100% (30000 / 30000) - Elapsed: 138.67 mins
+> t_elapsed <- as.numeric(difftime(Sys.time(), t_start, units = "mins"))
+> acc_phi   <- fit_main$acc
+> theta     <- fit_main$samples
+> fold_ll   <- fit_main$fold_loglik
+> cat(sprintf("Gibbs sampling complete in %.2f mins. Acceptance rate: %.4f\n",
++             t_elapsed, acc_phi))
+Gibbs sampling complete in 138.67 mins. Acceptance rate: 0.2111
+> cat(sprintf("Distinct folds visited: %d of %d\n", length(unique(fit_main$folds)), k.folds))
+Distinct folds visited: 1 of 10
+> rm(fit_main)
+> invisible(gc())
+> 
+> # ---- Sequential ELJPD History ------------------------------------------------
+> 
+> cat("Evaluating sequential ELJPD and MCSE checkpoints...\n")
+Evaluating sequential ELJPD and MCSE checkpoints...
+> history <- list(
++   S         = numeric(),
++   eljpd_hat = numeric(),
++   asymp_se  = numeric(),
++   ess_elpd  = numeric(),
++   minESS_xi = numeric()
++ )
+> 
+> history$fold_log_pred <- matrix(
++   NA_real_,
++   nrow = length(S_vals),
++   ncol = k.folds,
++   dimnames = list(
++     as.character(S_vals),
++     paste0("fold_", seq_len(k.folds))
++   )
++ )
+> 
+> for (S_curr in S_vals) {
++   tup <- tuple_function(fold_ll, S_curr = S_curr)
++   out <- eljpd.details(
++     tup$numerator,
++     tup$denominator,
++     log_c = tup$log_c,
++     samples = theta[1:S_curr, apply(theta[1:S_curr, , drop = FALSE], 2, sd) > 0, drop = FALSE]
++   )
++   history$S         <- c(history$S,         S_curr)
++   history$eljpd_hat <- c(history$eljpd_hat, out$eljpd_hat)
++   history$asymp_se  <- c(history$asymp_se,  out$asymp_se)
++   history$ess_elpd  <- c(history$ess_elpd,  out$ess_elpd)
++   history$minESS_xi <- c(history$minESS_xi, out$minESS_xi)
++   history$fold_log_pred[match(S_curr, S_vals), ] <-
++   out$fold_log_pred  
++ }
+> 
+> print(data.frame(
++   S         = history$S,
++   eljpd_hat = round(history$eljpd_hat, 3),
++   asymp_se  = round(history$asymp_se, 4),
++   ess_elpd  = round(history$ess_elpd, 1),
++   minESS_xi = round(history$minESS_xi, 1)
++ ))
+       S eljpd_hat asymp_se ess_elpd minESS_xi
+1   1000 -8214.651   9.1376     1000      15.1
+2   2000 -8273.204   6.0930     2000      30.2
+3   3000 -8404.836   1.0000     3000      21.0
+4   4000 -8475.171   1.0000     4000      12.8
+5   5000 -8480.814   2.9216     5000      11.8
+6   6000 -8481.983   3.5917     6000      11.6
+7   7000 -8550.422   7.3276     7000      12.1
+8   8000 -8689.923   2.4030     8000      12.5
+9   9000 -8692.650   1.0000     9000      12.2
+10 10000 -8692.755   1.0000    10000      13.3
+11 11000 -8698.222   2.2318    11000      13.1
+12 12000 -8698.358   2.2749    12000      13.3
+13 13000 -8698.438   2.2749    13000      13.8
+14 14000 -8698.609   2.3524    14000      14.1
+15 15000 -8698.709   2.3776    15000      14.7
+16 16000 -8745.224   4.3931    16000      15.2
+17 17000 -8867.253  10.5847    17000      15.4
+18 18000 -8908.966  11.0115    18000      16.0
+19 19000 -8924.016  10.7984    19000      16.5
+20 20000 -8987.813  11.2184    20000      17.1
+21 21000 -9003.171   7.0148    21000      17.9
+22 22000 -9003.217   7.0148    22000      18.7
+23 23000 -9003.262   7.0147    23000      19.4
+24 24000 -9003.304   7.0147    24000      20.1
+25 25000 -9015.542   7.3323    25000      20.7
+26 26000 -9037.843   7.4826    26000      21.5
+27 27000 -8938.113   4.2164    27000      22.4
+28 28000 -8938.149   4.2164    28000      23.2
+29 29000 -8938.621   4.1936    29000      23.6
+30 30000 -8980.047   4.8915    30000      24.2
+> 
+> # ---- Save --------------------------------------------------------------------
+> 
+> acc.phi <- acc_phi
+> save(
++   history,
++   acc.phi,
++   k.folds,
++   m,
++   S_star,
++   S_max,
++   file = "M2_outputs.RData"
++ )
+> cat("Results saved to M2_outputs.RData\n")
+Results saved to M2_outputs.RData
+> 
+> proc.time()
+    user   system  elapsed 
+8338.631    0.880 8340.243 
