@@ -97,8 +97,8 @@ cat(sprintf("Metropolis acceptance rate (phi): M1 = %.4f, M2 = %.4f\n\n", acc_m1
 last_k <- length(S_vals)
 
 summary_df <- data.frame(
-  Model          = c("M1 (Joint)", "M2 (Separate)"),
-  Specification  = c("Separable Cross-Covariance GP", "Independent Univariate GPs"),
+  Model          = c("M1 (Joint Model)", "M2 (Separate Model)"),
+  Specification  = c("", ""),
   S_max          = c(format(as.integer(S_vals[last_k]), big.mark = ","),
                      format(as.integer(S_vals[last_k]), big.mark = ",")),
   ELPD_hat       = round(c(h1_elpd[last_k], h2_elpd[last_k]), 2),
@@ -310,8 +310,8 @@ render_panel_a <- function(legend_cex = 1.40) {
 
   legend("topright", inset = c(0.025, 0.025),
          legend = c(
-           expression(italic(M)[1] ~ "(Joint Covariance GP)"),
-           expression(italic(M)[2] ~ "(Separate Covariance GP)"),
+           expression(italic(M)[1] ~ "(Joint Model)"),
+           expression(italic(M)[2] ~ "(Separate Model)"),
            sep_txt
          ),
          col    = c(COL_M1, COL_M2, COL_SEP),
