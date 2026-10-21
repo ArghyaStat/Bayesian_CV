@@ -1,0 +1,290 @@
+
+R version 4.5.1 (2025-06-13) -- "Great Square Root"
+Copyright (C) 2025 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # Link Misspecification Study: Model M2 (Misspecified - Cloglog Link)
+> # Dataset: Arrhythmia full dataset (n = 452, d = 258: 1 intercept + 257 covariates)
+> 
+> rm(list = ls())
+> invisible(gc())
+> set.seed(4091)
+> 
+> library(glmnet)
+Loading required package: Matrix
+Loaded glmnet 4.1-10
+> library(doParallel)
+Loading required package: foreach
+Loading required package: iterators
+Loading required package: parallel
+> library(mcmcse)
+> library(Rcpp)
+> 
+> if (requireNamespace("this.path", quietly = TRUE)) {
++   setwd(this.path::here())
++ }
+> 
+> # Register parallel backend with up to 50 cores for glmnet
+> ncores <- min(10, parallel::detectCores())
+> registerDoParallel(cores = ncores)
+> 
+> 
+> source("elppd_utils.R")
+> Rcpp::sourceCpp("gibbs_loocv_ess.cpp")
+> 
+> # ---- Parameters --------------------------------------------------------------
+> 
+> n_sweeps   <- 1L   # ESS sweeps over theta_0..theta_D per Gibbs iteration
+> 
+> S_star   <- 5e3
+> S_max    <- 2e5
+> S_step   <- 5e3
+> S_vals   <- seq(S_star, S_max, by = S_step)
+> 
+> # ---- Hyper-parameters (identical for M1 and M2) -----------------------------
+> 
+> p0         <- 10    # prior guess of relevant predictors (fixed, shared)
+> slab_scale <- 2     # s:  slab scale
+> slab_df    <- 4     # nu: slab degrees of freedom
+> interweave_tau <- TRUE  # non-centred tau update
+> 
+> 
+> # ---- Data & Model Specs ------------------------------------------------------
+> 
+> load("data.RData")
+> 
+> if (file.exists("model_specs.RData")) {
++   load("model_specs.RData")
++ }
+> 
+> if (exists("data_M2")) {
++   model_data <- data_M2
++   y <- 1 - data$y
++   X <- if (exists("X_M2")) X_M2 else model_data$X
++ } else {
++   y <- 1 - data$y
++   X <- data$X
++ }
+> 
+> n <- nrow(X)
+> d <- ncol(X)
+> D <- d - 1          # number of shrunk coefficients in M2 (D = 257, full model)
+> kappa <- 1:n
+> 
+> cat(sprintf("Setting up Model M2 (Cloglog link, Full model): n = %d, d = %d \n",
++             n, d, D))
+Setting up Model M2 (Cloglog link, Full model): n = 452, d = 258 
+Warning message:
+In sprintf("Setting up Model M2 (Cloglog link, Full model): n = %d, d = %d \n",  :
+  one argument not used by format 'Setting up Model M2 (Cloglog link, Full model): n = %d, d = %d 
+'
+> cat(sprintf("Homeostasis cases (Y*=1, Normal Rhythm): %d (%.2f%%)\n",
++             sum(y), 100 * mean(y)))
+Homeostasis cases (Y*=1, Normal Rhythm): 408 (90.27%)
+> 
+> # ---- Global-scale hyper-parameter ------------------------------------------
+> mu_hat      <- mean(y)
+> sigma_tilde <- 1 / sqrt(mu_hat * (1 - mu_hat))
+> tau0        <- p0 / (D - p0) * sigma_tilde / sqrt(n)
+> 
+> cat(sprintf("  p0 = %.1f, sigma_tilde = %.3f, tau0 = %.5f, slab: scale = %.1f, df = %.1f\n",
++             p0, sigma_tilde, tau0, slab_scale, slab_df))
+  p0 = 10.0, sigma_tilde = 3.374, tau0 = 0.00642, slab: scale = 2.0, df = 4.0
+> 
+> # Lasso initialization via cv.glmnet with nfolds = n, parallel = TRUE
+> cat(sprintf("Computing Lasso initialization (nfolds = %d, parallel = TRUE)...\n", n))
+Computing Lasso initialization (nfolds = 452, parallel = TRUE)...
+> cv_fit_init <- glmnet::cv.glmnet(
++   x = X[, -1, drop = FALSE],
++   y = y,
++   family = "binomial",
++   type.measure = "deviance",
++   alpha = 1,
++   intercept = TRUE,
++   standardize = TRUE,
++   nfolds = 1e2,
++   parallel = TRUE
++ )
+> beta_init <- as.numeric(coef(cv_fit_init, s = "lambda.min"))
+> 
+> 
+> p_bar <- 1 / (1 + exp(-beta_init[1]))
+> if (p_bar > 0 && p_bar < 1) {
++   beta_init[1] <- log(-log(1 - p_bar))
++ }
+> cat(sprintf("Cloglog intercept calibrated to inverted prevalence %.3f: eta0 = %.4f\n",
++             p_bar, beta_init[1]))
+Cloglog intercept calibrated to inverted prevalence 0.947: eta0 = 1.0755
+> 
+> # ---- Gibbs Sampling (component-wise ESS, no warm-up) ------------------------
+> 
+> cat(sprintf("Running Main Gibbs LOOCV sampling for %d iterations...\n", S_max))
+Running Main Gibbs LOOCV sampling for 200000 iterations...
+> t_start <- proc.time()
+> fit_main <- gibbs_loocv_rhs_ess_cpp(
++   X          = X,
++   y          = y,
++   theta_init = beta_init,
++   tau0       = tau0,
++   slab_scale = slab_scale,
++   slab_df    = slab_df,
++   niters     = S_max,
++   link       = "cloglog",
++   n_sweeps   = n_sweeps,
++   interweave_tau = interweave_tau
++ )
+> t_elapsed    <- (proc.time() - t_start)[3]
+> evals_mix    <- fit_main$evals_per_coord
+> beta_samples <- fit_main$samples
+> cat(sprintf("Main Gibbs sampling complete in %.2f s. Likelihood evaluations per coordinate: %.2f\n", 
++             t_elapsed, evals_mix))
+Main Gibbs sampling complete in 815.81 s. Likelihood evaluations per coordinate: 1.17
+> cat(sprintf("Distinct folds visited: %d of %d\n", length(unique(fit_main$folds)), n))
+Distinct folds visited: 452 of 452
+> cat(sprintf("tau: median %.4f (prior scale tau0 = %.4f); c^2: median %.3f\n",
++             median(fit_main$tau), tau0, median(fit_main$c2)))
+tau: median 0.0063 (prior scale tau0 = 0.0064); c^2: median 4.584
+> 
+> # ---- Vectorised Log-Likelihood Matrix (Cloglog Link) -------------------------
+> 
+> compute_log_lik_mat_cloglog <- function(samples, X, y) {
++   eta <- tcrossprod(samples, X)
++   y_mat <- matrix(y, nrow(samples), ncol(eta), byrow = TRUE)
++   
++   # Stable log(1 - exp(-exp(eta)))
++   ll_y1 <- ifelse(
++     eta > 36, 0,
++     ifelse(
++       eta > 4, -exp(-exp(eta)),
++       ifelse(eta < -16, eta, log(-expm1(-exp(eta))))
++     )
++   )
++   ll_y0 <- -exp(pmin(eta, 50))
++   
++   y_mat * ll_y1 + (1 - y_mat) * ll_y0
++ }
+> 
+> cat("Computing log-likelihood matrix (Cloglog link)...\n")
+Computing log-likelihood matrix (Cloglog link)...
+> log_lik_mix <- compute_log_lik_mat_cloglog(beta_samples, X, y)
+> 
+> # ---- Sequential ELPPD History -----------------------------------------------
+> 
+> cat("Evaluating sequential ELPPD and MCSE checkpoints...\n")
+Evaluating sequential ELPPD and MCSE checkpoints...
+> history <- list(
++   S         = numeric(),
++   ess_elppd = numeric(),
++   minESS_xi = numeric(),
++   elppd_hat = numeric(),
++   bias      = numeric(),
++   mse       = numeric(),
++   asymp_se  = numeric()
++ )
+> 
+> for (S_curr in S_vals) {
++   tup <- tuple_function(log_lik_mix, kappa, S_curr)
++   out <- elppd.details(
++     tup$numerator,
++     tup$denominator,
++     elppd_true = NULL,
++     samples    = cbind(beta_samples[1:S_curr, , drop = FALSE],
++                        tau = fit_main$tau[1:S_curr],
++                        c2  = fit_main$c2[1:S_curr])
++   )
++   history$S         <- c(history$S,         S_curr)
++   history$ess_elppd <- c(history$ess_elppd, out$ess_elppd)
++   history$minESS_xi <- c(history$minESS_xi, out$minESS_xi)
++   history$elppd_hat <- c(history$elppd_hat, out$elppd)
++   history$bias      <- c(history$bias,      out$bias)
++   history$mse       <- c(history$mse,       out$mse)
++   history$asymp_se  <- c(history$asymp_se,  out$asymp_se)
++ }
+> 
+> print(data.frame(
++   S         = history$S,
++   elppd_hat = round(history$elppd_hat, 3),
++   asymp_se  = round(history$asymp_se, 4),
++   ess_elppd = round(history$ess_elppd, 1),
++   minESS_xi = round(history$minESS_xi, 1)
++ ))
+        S elppd_hat asymp_se ess_elppd minESS_xi
+1    5000   -92.143   0.8402     474.1      70.7
+2   10000   -91.771   0.6719     932.9     132.7
+3   15000   -90.956   0.5368    1363.3     176.5
+4   20000   -90.608   0.4520    1787.1     245.4
+5   25000   -90.557   0.3961    2917.0     292.1
+6   30000   -90.293   0.3849    2836.7     319.9
+7   35000   -90.242   0.3026    4404.7     419.7
+8   40000   -90.358   0.2969    4697.3     462.2
+9   45000   -90.238   0.2818    5065.1     497.7
+10  50000   -90.154   0.2613    6360.0     552.7
+11  55000   -90.043   0.2329    7934.0     597.7
+12  60000   -90.069   0.2222    8451.2     659.4
+13  65000   -90.132   0.2270    9264.2     653.5
+14  70000   -90.161   0.2175   10788.7     695.0
+15  75000   -90.157   0.2223   10522.9     717.1
+16  80000   -90.228   0.2212   10716.6     230.0
+17  85000   -90.200   0.2181   11474.4     255.1
+18  90000   -90.155   0.1995   13345.7     281.4
+19  95000   -90.124   0.1889   15223.7     307.8
+20 100000   -90.121   0.2004   13303.5     364.5
+21 105000   -90.099   0.1815   15909.1     403.7
+22 110000   -90.139   0.1777   16594.3     445.4
+23 115000   -90.113   0.1685   18210.8     478.8
+24 120000   -90.109   0.1641   19794.4     516.1
+25 125000   -90.119   0.1738   17323.1     543.3
+26 130000   -90.100   0.1680   18290.2     602.7
+27 135000   -90.062   0.1630   19101.4     632.0
+28 140000   -90.167   0.1632   20976.1     688.5
+29 145000   -90.132   0.1731   18288.2     738.0
+30 150000   -90.103   0.1859   15590.3     786.8
+31 155000   -90.078   0.1515   23337.9     848.0
+32 160000   -90.069   0.1638   19862.4     889.4
+33 165000   -90.066   0.1587   21576.3    1006.6
+34 170000   -90.058   0.1573   21711.0    1045.4
+35 175000   -90.050   0.1598   20863.8    1089.4
+36 180000   -90.024   0.1496   23449.4    1149.9
+37 185000   -90.037   0.1501   23173.8    1196.8
+38 190000   -90.038   0.1437   25779.6    1242.0
+39 195000   -90.016   0.1404   26608.3    1287.6
+40 200000   -89.997   0.1399   26592.9    1336.9
+> 
+> # ---- Save --------------------------------------------------------------------
+> 
+> link <- "cloglog"
+> 
+> save(
++   history,
++   evals_mix,
++   t_elapsed,
++   p0,
++   tau0,
++   slab_scale,
++   slab_df,
++   interweave_tau,
++   n,
++   d,
++   link,
++   file = "M2_outputs.RData"
++ )
+> cat("Results saved to M2_outputs.RData\n")
+Results saved to M2_outputs.RData
+> 
+> proc.time()
+    user   system  elapsed 
+1446.395   38.357 1476.166 

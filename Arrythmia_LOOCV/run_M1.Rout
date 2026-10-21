@@ -1,0 +1,271 @@
+
+R version 4.5.1 (2025-06-13) -- "Great Square Root"
+Copyright (C) 2025 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # Link Misspecification Study: Model M1 (Reference - Logistic Link)
+> # Dataset: Arrhythmia full dataset (n = 452, d = 258)
+> # Prior:   Regularised horseshoe prior (Piironen & Vehtari, 2017)
+> # Link:    Logistic (Bernoulli-logistic likelihood)
+> 
+> 
+> rm(list = ls())
+> invisible(gc())
+> set.seed(1904)
+> 
+> library(glmnet)
+Loading required package: Matrix
+Loaded glmnet 4.1-10
+> library(doParallel)
+Loading required package: foreach
+Loading required package: iterators
+Loading required package: parallel
+> library(mcmcse)
+> library(Rcpp)
+> 
+> if (requireNamespace("this.path", quietly = TRUE)) {
++   setwd(this.path::here())
++ }
+> 
+> # Register parallel backend with up to 50 cores for glmnet
+> ncores <- min(10, parallel::detectCores())
+> registerDoParallel(cores = ncores)
+> 
+> source("elppd_utils.R")
+> Rcpp::sourceCpp("gibbs_loocv_ess.cpp")
+> 
+> # ---- Parameters --------------------------------------------------------------
+> 
+> n_sweeps   <- 1L   # ESS sweeps over theta_0..theta_D per Gibbs iteration
+> 
+> S_star   <- 5e3
+> S_max    <- 2e5
+> S_step   <- 5e3
+> S_vals   <- seq(S_star, S_max, by = S_step)
+> 
+> # ---- Hyper-parameters -----------------------------
+> 
+> p0         <- 10    # prior guess of relevant predictors (fixed, shared)
+> slab_scale <- 2     # s:  slab scale
+> slab_df    <- 4     # nu: slab degrees of freedom
+> interweave_tau <- TRUE  # ASIS (Yu & Meng, 2011) non-centred tau update
+> 
+> # ---- Data & Model Specs ------------------------------------------------------
+> 
+> load("data.RData")
+> 
+> if (file.exists("model_specs.RData")) {
++   load("model_specs.RData")
++ }
+> 
+> if (exists("data_M1")) {
++   model_data <- data_M1
++   y <- 1 - data$y
++   X <- if (exists("X_M1")) X_M1 else model_data$X
++ } else {
++   y <- 1 - data$y
++   X <- data$X
++ }
+> 
+> n <- nrow(X)
+> d <- ncol(X)
+> D <- d - 1          # number of shrunk coefficients (D = 257)
+> kappa <- 1:n
+> 
+> cat(sprintf("Setting up Model M1 (Logistic link, Full model): n = %d, d = %d\n",
++             n, d, D))
+Setting up Model M1 (Logistic link, Full model): n = 452, d = 258
+Warning message:
+In sprintf("Setting up Model M1 (Logistic link, Full model): n = %d, d = %d\n",  :
+  one argument not used by format 'Setting up Model M1 (Logistic link, Full model): n = %d, d = %d
+'
+> cat(sprintf("Homeostasis cases (Y*=1, Normal Rhythm): %d (%.2f%%) \n",
++             sum(y), 100 * mean(y)))
+Homeostasis cases (Y*=1, Normal Rhythm): 408 (90.27%) 
+> 
+> # ---- Global-scale hyper-parameter ------------------------------------------
+> mu_hat      <- mean(y)
+> sigma_tilde <- 1 / sqrt(mu_hat * (1 - mu_hat))
+> tau0        <- p0 / (D - p0) * sigma_tilde / sqrt(n)
+> 
+> cat(sprintf("  p0 = %.1f, sigma_tilde = %.3f, tau0 = %.5f, slab: scale = %.1f, df = %.1f\n",
++             p0, sigma_tilde, tau0, slab_scale, slab_df))
+  p0 = 10.0, sigma_tilde = 3.374, tau0 = 0.00642, slab: scale = 2.0, df = 4.0
+> 
+> # Lasso initialization via cv.glmnet with nfolds = n, parallel = TRUE
+> cat(sprintf("Computing Lasso initialization (nfolds = %d, parallel = TRUE)...\n", n))
+Computing Lasso initialization (nfolds = 452, parallel = TRUE)...
+> cv_fit_init <- glmnet::cv.glmnet(
++   x = X[, -1, drop = FALSE],
++   y = y,
++   family = "binomial",
++   type.measure = "deviance",
++   alpha = 1,
++   intercept = TRUE,
++   standardize = TRUE,
++   nfolds = 1e2,
++   parallel = TRUE
++ )
+> beta_init <- as.numeric(coef(cv_fit_init, s = "lambda.min"))
+> 
+> # ---- Gibbs Sampling (component-wise ESS, no warm-up) ------------------------
+> 
+> cat(sprintf("Running Main Gibbs LOOCV sampling for %d iterations...\n", S_max))
+Running Main Gibbs LOOCV sampling for 200000 iterations...
+> 
+> t_start <- proc.time()
+> fit_main <- gibbs_loocv_rhs_ess_cpp(
++   X          = X,
++   y          = y,
++   theta_init = beta_init,
++   tau0       = tau0,
++   slab_scale = slab_scale,
++   slab_df    = slab_df,
++   niters     = S_max,
++   link       = "logit",
++   n_sweeps   = n_sweeps,
++   interweave_tau = interweave_tau
++ )
+> t_elapsed    <- (proc.time() - t_start)[3]
+> evals_mix    <- fit_main$evals_per_coord
+> beta_samples <- fit_main$samples
+> cat(sprintf("Main Gibbs sampling complete in %.2f s. Likelihood evaluations per coordinate: %.2f\n", 
++             t_elapsed, evals_mix))
+Main Gibbs sampling complete in 484.49 s. Likelihood evaluations per coordinate: 1.17
+> cat(sprintf("Distinct folds visited: %d of %d\n", length(unique(fit_main$folds)), n))
+Distinct folds visited: 452 of 452
+> cat(sprintf("tau: median %.4f (prior scale tau0 = %.4f); c^2: median %.3f\n",
++             median(fit_main$tau), tau0, median(fit_main$c2)))
+tau: median 0.0131 (prior scale tau0 = 0.0064); c^2: median 5.188
+> 
+> # ---- Vectorised Log-Likelihood Matrix (Logistic Link) ------------------------
+> 
+> compute_log_lik_mat <- function(samples, X, y) {
++   eta <- tcrossprod(samples, X)
++   y_mat <- matrix(y, nrow(samples), ncol(eta), byrow = TRUE)
++   softplus_mat <- log1p(exp(-abs(eta))) + pmax(eta, 0)
++   y_mat * eta - softplus_mat
++ }
+> 
+> cat("Computing log-likelihood matrix (Logistic link)...\n")
+Computing log-likelihood matrix (Logistic link)...
+> log_lik_mix <- compute_log_lik_mat(beta_samples, X, y)
+> 
+> # ---- Sequential ELPPD History -----------------------------------------------
+> 
+> cat("Evaluating sequential ELPPD and MCSE checkpoints...\n")
+Evaluating sequential ELPPD and MCSE checkpoints...
+> history <- list(
++   S         = numeric(),
++   ess_elppd = numeric(),
++   minESS_xi = numeric(),
++   elppd_hat = numeric(),
++   bias      = numeric(),
++   mse       = numeric(),
++   asymp_se  = numeric()
++ )
+> 
+> for (S_curr in S_vals) {
++   tup <- tuple_function(log_lik_mix, kappa, S_curr)
++   out <- elppd.details(
++     tup$numerator,
++     tup$denominator,
++     elppd_true = NULL,
++     samples    = cbind(beta_samples[1:S_curr, , drop = FALSE],
++                        tau = fit_main$tau[1:S_curr],
++                        c2  = fit_main$c2[1:S_curr])
++   )
++   history$S         <- c(history$S,         S_curr)
++   history$ess_elppd <- c(history$ess_elppd, out$ess_elppd)
++   history$minESS_xi <- c(history$minESS_xi, out$minESS_xi)
++   history$elppd_hat <- c(history$elppd_hat, out$elppd)
++   history$bias      <- c(history$bias,      out$bias)
++   history$mse       <- c(history$mse,       out$mse)
++   history$asymp_se  <- c(history$asymp_se,  out$asymp_se)
++ }
+> 
+> print(data.frame(
++   S         = history$S,
++   elppd_hat = round(history$elppd_hat, 3),
++   asymp_se  = round(history$asymp_se, 4),
++   ess_elppd = round(history$ess_elppd, 1),
++   minESS_xi = round(history$minESS_xi, 1)
++ ))
+        S elppd_hat asymp_se ess_elppd minESS_xi
+1    5000   -90.999   0.5057     907.9      66.8
+2   10000   -91.266   0.3873    2299.1     149.3
+3   15000   -90.980   0.2880    3517.4     209.9
+4   20000   -90.920   0.3108    2903.1     259.5
+5   25000   -91.053   0.2303    5533.4     298.2
+6   30000   -90.979   0.2052    6828.8     362.8
+7   35000   -91.186   0.2188    7373.6     406.2
+8   40000   -91.196   0.2091    8087.0     459.3
+9   45000   -91.205   0.1983    9304.2     529.8
+10  50000   -91.153   0.1825   11036.0     575.2
+11  55000   -91.224   0.1779   11746.5     666.2
+12  60000   -91.257   0.1728   12830.5     720.6
+13  65000   -91.324   0.1721   13490.8     766.5
+14  70000   -91.351   0.1730   14140.0     798.7
+15  75000   -91.344   0.1572   17701.2     858.3
+16  80000   -91.311   0.1568   17257.9     918.9
+17  85000   -91.315   0.1463   19765.5     996.2
+18  90000   -91.396   0.1440   21317.9    1063.3
+19  95000   -91.416   0.1400   22414.9    1122.4
+20 100000   -91.441   0.1381   23196.2    1161.3
+21 105000   -91.438   0.1366   24860.9    1233.9
+22 110000   -91.417   0.1320   26514.4    1292.6
+23 115000   -91.421   0.1279   27513.8    1351.1
+24 120000   -91.509   0.1378   25795.2    1419.9
+25 125000   -91.469   0.1337   26841.3    1477.6
+26 130000   -91.449   0.1436   23013.5    1524.0
+27 135000   -91.453   0.1396   24337.8    1559.1
+28 140000   -91.473   0.1272   29945.6    1613.8
+29 145000   -91.443   0.1330   26922.0    1651.9
+30 150000   -91.513   0.1341   26599.7    1714.1
+31 155000   -91.518   0.1204   32501.0    1772.8
+32 160000   -91.495   0.1247   29836.4    1795.7
+33 165000   -91.519   0.1220   31342.1    1849.0
+34 170000   -91.488   0.1195   32731.0    1908.7
+35 175000   -91.466   0.1156   34552.4    1939.5
+36 180000   -91.462   0.1124   36230.1    1977.8
+37 185000   -91.445   0.1108   36789.5    2042.4
+38 190000   -91.476   0.1127   35786.4    2084.9
+39 195000   -91.449   0.1099   37827.3    2141.9
+40 200000   -91.460   0.1055   41015.0    2183.9
+> 
+> # ---- Save --------------------------------------------------------------------
+> 
+> link <- "logit"
+> 
+> save(history,
++      evals_mix,
++      t_elapsed,
++      p0,
++      tau0,
++      slab_scale,
++      slab_df,
++      interweave_tau,
++      n,
++      d,
++      link,
++      file = "M1_outputs.RData")
+> cat("Results saved to M1_outputs.RData\n")
+Results saved to M1_outputs.RData
+> 
+> proc.time()
+    user   system  elapsed 
+1088.499   42.313 1122.195 
