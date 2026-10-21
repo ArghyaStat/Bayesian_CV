@@ -34,9 +34,6 @@ S_star <- min(S_vals)
 S_max  <- max(S_vals)
 
 ## Summary
-cat("==================================================================\n")
-cat("Link Misspecification Analysis: Storyline A (d = 207, CAD vs All)\n")
-cat("==================================================================\n")
 cat(sprintf("Model M1 (%s) : d = %d (D = %d shrunk), n = %d, tau0 = %.5f (p0 = %.1f)\n",
             toupper(link_M1), d_M1, d_M1 - 1, n_val, tau0_M1, p0_M1))
 cat(sprintf("Model M2 (%s): d = %d (D = %d shrunk), n = %d, tau0 = %.5f (p0 = %.1f)\n",
@@ -150,8 +147,8 @@ render_elppd_panel <- function() {
   d_pred <- d_M1 - 1
   legend("topright", inset = c(0.025, 0.025),
          legend = c(
-           as.expression(bquote(italic(M)[1] ~ "(Logistic," ~ italic(d) == .(d_pred) * ")")),
-           as.expression(bquote(italic(M)[2] ~ "(Cloglog," ~ italic(d) == .(d_pred) * ")")),
+           as.expression(bquote(italic(M)[1] ~ "(Logistic link)")),
+           as.expression(bquote(italic(M)[2] ~ "(Cloglog link)")),
            sep_txt
          ),
          col = c(COL_M1, COL_M2, COL_SEP),
@@ -192,15 +189,15 @@ render_eff_panel <- function() {
 }
 
 ## Export
-pdf("elpd_tracking.pdf", width = 9, height = 7.5)
+pdf("elpd_tracking_arrythmia.pdf", width = 9, height = 7.5)
 set_par(1)
 render_elppd_panel()
 invisible(dev.off())
-cat("Saved: elpd_tracking.pdf\n")
+cat("Saved: elpd_tracking_arrythmia.pdf\n")
 
-pdf("elpd_mcse.pdf", width = 16, height = 7.5)
+pdf("elpd_mcse_arrythmia.pdf", width = 16, height = 7.5)
 set_par(2)
 render_elppd_panel()
 render_eff_panel()
 invisible(dev.off())
-cat("Saved: elpd_mcse.pdf\n")
+cat("Saved: elpd_mcse_arrythmia.pdf\n")
