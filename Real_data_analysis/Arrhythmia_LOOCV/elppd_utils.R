@@ -1,9 +1,4 @@
-# ==============================================================================
-# elppd_utils.R
-# Utilities for computing Leave-One-Out ELPPD under the mixture proposal q_mix
-# and estimating asymptotic Monte Carlo Standard Errors (MCSE) and Effective
-# Sample Size (ESS) via mcmcse.
-# ==============================================================================
+# LOO-CV ELPPD under the mixture proposal q_mix, with asymptotic MCSE and ESS via mcmcse
 
 log_sum_exp <- function(x) {
   max_x <- max(x)
@@ -11,6 +6,7 @@ log_sum_exp <- function(x) {
   max_x + log(sum(exp(x - max_x)))
 }
 
+# Mixture IS numerator and denominator matrices for fold allocation kappa
 tuple_function <- function(log_lik_mat, kappa, S_curr = NULL) {
   S <- if (is.null(S_curr)) nrow(log_lik_mat) else S_curr
   n <- ncol(log_lik_mat)

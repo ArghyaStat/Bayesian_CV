@@ -1,7 +1,5 @@
-# Exact 10-fold ELJPD reference for M1 (nu = 0.5) and M2 (nu = 1) under the Vecchia model.
-# With (beta, s2) integrated out, p(y_I | phi, r) is closed form for any index set I, so
-#   p(y_{D_k} | y_{-D_k}) = p(y) / p(y_{-D_k}),   p(y_I) = int p(y_I | phi, r) p(phi) p(r) dphi dr,
-# computed by quadrature on (log phi, logit r). Two grid sizes check convergence.
+# Exact 10-fold ELJPD reference for M1 (nu = 0.5) and M2 (nu = 1): p(y_{D_k} | y_{-D_k}) = p(y) / p(y_{-D_k})
+# with (beta, s2) integrated out and (phi, r) integrated by quadrature on two grid sizes
 
 rm(list = ls())
 invisible(gc())

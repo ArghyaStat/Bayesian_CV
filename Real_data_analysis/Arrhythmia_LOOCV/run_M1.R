@@ -1,9 +1,9 @@
-# Link Misspecification Study: Model M2 (Misspecified - Cloglog Link)
-# Dataset: Arrhythmia full dataset (n = 452, d = 258: 1 intercept + 257 covariates)
+# Link misspecification (Section 7.1), model M1: logistic regression with a regularised horseshoe prior
+# Arrhythmia data (n = 452, d = 258 including intercept); LOO-CV ELPPD from a single q_mix chain
 
 rm(list = ls())
 invisible(gc())
-set.seed(4091)
+set.seed(1904)
 
 library(glmnet)
 library(doParallel)
@@ -14,10 +14,9 @@ if (requireNamespace("this.path", quietly = TRUE)) {
   setwd(this.path::here())
 }
 
-# Register parallel backend with up to 50 cores for glmnet
+# Parallel backend for cv.glmnet
 ncores <- min(10, parallel::detectCores())
 registerDoParallel(cores = ncores)
-
 
 source("elppd_utils.R")
 Rcpp::sourceCpp("gibbs_loocv_ess.cpp")
@@ -31,13 +30,12 @@ S_max    <- 2e5
 S_step   <- 5e3
 S_vals   <- seq(S_star, S_max, by = S_step)
 
-# ---- Hyper-parameters (identical for M1 and M2) -----------------------------
+# ---- Hyper-parameters -----------------------------
 
 p0         <- 10    # prior guess of relevant predictors (fixed, shared)
 slab_scale <- 2     # s:  slab scale
 slab_df    <- 4     # nu: slab degrees of freedom
-interweave_tau <- TRUE  # non-centred tau update
-
+interweave_tau <- TRUE  # ASIS (Yu & Meng, 2011) non-centred tau update
 
 # ---- Data & Model Specs ------------------------------------------------------
 
@@ -47,10 +45,10 @@ if (file.exists("model_specs.RData")) {
   load("model_specs.RData")
 }
 
-if (exists("data_M2")) {
-  model_data <- data_M2
+if (exists("data_M1")) {
+  model_data <- data_M1
   y <- 1 - data$y
-  X <- if (exists("X_M2")) X_M2 else model_data$X
+  X <- if (exists("X_M1")) X_M1 else model_data$X
 } else {
   y <- 1 - data$y
   X <- data$X
@@ -58,12 +56,12 @@ if (exists("data_M2")) {
 
 n <- nrow(X)
 d <- ncol(X)
-D <- d - 1          # number of shrunk coefficients in M2 (D = 257, full model)
+D <- d - 1          # number of shrunk coefficients (D = 257)
 kappa <- 1:n
 
-cat(sprintf("Setting up Model M2 (Cloglog link, Full model): n = %d, d = %d \n",
+cat(sprintf("Setting up Model M1 (Logistic link, Full model): n = %d, d = %d\n",
             n, d, D))
-cat(sprintf("Homeostasis cases (Y*=1, Normal Rhythm): %d (%.2f%%)\n",
+cat(sprintf("Homeostasis cases (Y*=1, Normal Rhythm): %d (%.2f%%) \n",
             sum(y), 100 * mean(y)))
 
 # ---- Global-scale hyper-parameter ------------------------------------------
@@ -89,17 +87,10 @@ cv_fit_init <- glmnet::cv.glmnet(
 )
 beta_init <- as.numeric(coef(cv_fit_init, s = "lambda.min"))
 
-
-p_bar <- 1 / (1 + exp(-beta_init[1]))
-if (p_bar > 0 && p_bar < 1) {
-  beta_init[1] <- log(-log(1 - p_bar))
-}
-cat(sprintf("Cloglog intercept calibrated to inverted prevalence %.3f: eta0 = %.4f\n",
-            p_bar, beta_init[1]))
-
 # ---- Gibbs Sampling (component-wise ESS, no warm-up) ------------------------
 
 cat(sprintf("Running Main Gibbs LOOCV sampling for %d iterations...\n", S_max))
+
 t_start <- proc.time()
 fit_main <- gibbs_loocv_rhs_ess_cpp(
   X          = X,
@@ -109,7 +100,7 @@ fit_main <- gibbs_loocv_rhs_ess_cpp(
   slab_scale = slab_scale,
   slab_df    = slab_df,
   niters     = S_max,
-  link       = "cloglog",
+  link       = "logit",
   n_sweeps   = n_sweeps,
   interweave_tau = interweave_tau
 )
@@ -122,27 +113,17 @@ cat(sprintf("Distinct folds visited: %d of %d\n", length(unique(fit_main$folds))
 cat(sprintf("tau: median %.4f (prior scale tau0 = %.4f); c^2: median %.3f\n",
             median(fit_main$tau), tau0, median(fit_main$c2)))
 
-# ---- Vectorised Log-Likelihood Matrix (Cloglog Link) -------------------------
+# ---- Vectorised Log-Likelihood Matrix (Logistic Link) ------------------------
 
-compute_log_lik_mat_cloglog <- function(samples, X, y) {
+compute_log_lik_mat <- function(samples, X, y) {
   eta <- tcrossprod(samples, X)
   y_mat <- matrix(y, nrow(samples), ncol(eta), byrow = TRUE)
-  
-  # Stable log(1 - exp(-exp(eta)))
-  ll_y1 <- ifelse(
-    eta > 36, 0,
-    ifelse(
-      eta > 4, -exp(-exp(eta)),
-      ifelse(eta < -16, eta, log(-expm1(-exp(eta))))
-    )
-  )
-  ll_y0 <- -exp(pmin(eta, 50))
-  
-  y_mat * ll_y1 + (1 - y_mat) * ll_y0
+  softplus_mat <- log1p(exp(-abs(eta))) + pmax(eta, 0)
+  y_mat * eta - softplus_mat
 }
 
-cat("Computing log-likelihood matrix (Cloglog link)...\n")
-log_lik_mix <- compute_log_lik_mat_cloglog(beta_samples, X, y)
+cat("Computing log-likelihood matrix (Logistic link)...\n")
+log_lik_mix <- compute_log_lik_mat(beta_samples, X, y)
 
 # ---- Sequential ELPPD History -----------------------------------------------
 
@@ -186,20 +167,18 @@ print(data.frame(
 
 # ---- Save --------------------------------------------------------------------
 
-link <- "cloglog"
+link <- "logit"
 
-save(
-  history,
-  evals_mix,
-  t_elapsed,
-  p0,
-  tau0,
-  slab_scale,
-  slab_df,
-  interweave_tau,
-  n,
-  d,
-  link,
-  file = "M2_outputs.RData"
-)
-cat("Results saved to M2_outputs.RData\n")
+save(history,
+     evals_mix,
+     t_elapsed,
+     p0,
+     tau0,
+     slab_scale,
+     slab_df,
+     interweave_tau,
+     n,
+     d,
+     link,
+     file = "M1_outputs.RData")
+cat("Results saved to M1_outputs.RData\n")

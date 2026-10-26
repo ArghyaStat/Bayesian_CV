@@ -26,8 +26,7 @@ loo_elpd_diff <- function(X, y, sigma2, tau2, dropped_col) {
   elpd_m1 - elpd_m2
 }
 
-# Simulate data under the Bayesian linear regression model.
-# The dropped predictor (dropped_col) controls the ELPD gap (target_delta).
+# Simulate linear regression data; the coefficient of dropped_col is set so the exact ELPD gap equals target_delta
 sim_data <- function(n, d, s, eta, sigma2,
                      target_delta = 4, dropped_col = d,
                      tau2 = 100, beta_range = c(0, 10),

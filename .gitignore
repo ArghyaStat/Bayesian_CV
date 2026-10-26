@@ -1,0 +1,7 @@
+.DS_Store
+.Rhistory
+.Rapp.history
+.RData
+.Rproj.user/
+nohup.out
+*.png

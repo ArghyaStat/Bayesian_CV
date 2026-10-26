@@ -28,8 +28,7 @@ n_cores    <- 50
 
 inp <- load_inputs("sim_data.RData", m = m)
 
-# FORK workers inherit the compiled sampler; it is not exported (its native
-# pointer cannot be serialised)
+# FORK workers inherit the compiled sampler (native pointers cannot be exported)
 cl <- tryCatch({
   c <- makeCluster(n_cores, type = "FORK")
   registerDoParallel(c)

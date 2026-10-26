@@ -1,4 +1,4 @@
-# Model M2 (Separate Covariance): K-fold ELJPD via Gibbs sampling from q_mix
+# Latent covariance misspecification (Section 7.2), model M2 (separate covariances): 10-fold ELJPD from a q_mix chain
 
 rm(list = ls())
 invisible(gc())
@@ -16,7 +16,6 @@ makevars_file <- makevars_candidates[file.exists(makevars_candidates)][1]
 if (!is.na(makevars_file)) Sys.setenv(R_MAKEVARS_USER = normalizePath(makevars_file))
 
 source("vecchia.R")
-source("aux_functions_sep.R")
 source("eljpd.utils.R")
 Rcpp::sourceCpp("gibbs_kfold_sep.cpp")
 
@@ -26,7 +25,7 @@ k.folds    <- 10
 m          <- 20
 t.index    <- 140
 S_star     <- 1e3
-S_max      <- 1e4
+S_max      <- 3e4
 S_step     <- 1e3
 S_vals     <- seq(S_star, S_max, by = S_step)
 tuning.phi <- 1e-2

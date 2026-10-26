@@ -1,5 +1,5 @@
 
-### Fast maxmin ordering (Guiness 2018)
+# Max-min ordering (Guinness, 2018)
 
 max_min <- function(locations) {
   n <- nrow(locations)
@@ -44,7 +44,7 @@ max_min <- function(locations) {
   ordered_indices
 }
 
-### preceding ordered neighbouring
+# m nearest previously-ordered neighbours of each location
 
 neighbor_matrix <- function(locs_ord, m) {
   

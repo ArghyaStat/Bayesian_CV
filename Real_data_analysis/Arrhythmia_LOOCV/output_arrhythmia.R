@@ -1,6 +1,5 @@
-## Link misspecification analysis on d = 207 (Storyline A: CAD vs All)
-## M1: Bayesian logistic regression, M2: Bayesian cloglog regression
-## Outputs: elpd_tracking.pdf, elpd_mcse.pdf
+## Link misspecification in binary regression (Section 7.1): M1 (logistic) vs M2 (cloglog), n = 452, d = 258
+## Output: elpd_mcse_arrhythmia.pdf (ELPPD tracking with 95% MC intervals and S_sep)
 
 rm(list = ls())
 invisible(gc())
@@ -66,10 +65,10 @@ compute_S_sep <- function(S, lo1, hi1, lo2, hi2) {
 sep_S <- compute_S_sep(S_vals, m1_lo, m1_hi, m2_lo, m2_hi)
 if (!is.na(sep_S)) {
   cat(sprintf("Data-adaptive separation attained at S_sep = %s iterations!\n",
-              format(sep_S, big.mark = ",")))
+              format(sep_S, big.mark = ",", scientific = FALSE)))
   k_sep <- which(S_vals == sep_S)
   cat(sprintf("  At S = %s: M1 = %.2f [%.2f, %.2f] vs M2 = %.2f [%.2f, %.2f]\n\n",
-              format(sep_S, big.mark = ","),
+              format(sep_S, big.mark = ",", scientific = FALSE),
               h1$elppd_hat[k_sep], m1_lo[k_sep], m1_hi[k_sep],
               h2$elppd_hat[k_sep], m2_lo[k_sep], m2_hi[k_sep]))
 } else {
@@ -82,7 +81,7 @@ COL_M2  <- "#D73027"
 COL_SEP <- "#006837"
 
 xlim_common <- range(S_vals)
-s_ticks     <- pretty(S_vals, n = 8)
+s_ticks     <- pretty(S_vals, n = 5)
 s_ticks     <- s_ticks[s_ticks >= S_star & s_ticks <= S_max]
 s_labels    <- if (S_max >= 1e3) paste0(s_ticks / 1000, "K") else as.character(s_ticks)
 
@@ -94,20 +93,13 @@ if (y_range < 1e-5) y_range <- 1.0
 y_ticks_elppd <- pretty(c(elppd_min - 0.08 * y_range, elppd_max + 0.25 * y_range), n = 7)
 ylim_elppd    <- range(y_ticks_elppd)
 
-eff_m1       <- h1$ess_elppd / h1$S
-eff_m2       <- h2$ess_elppd / h2$S
-y_ticks_eff  <- pretty(c(0, max(c(eff_m1, eff_m2), na.rm = TRUE) * 1.15), n = 5)
-ylim_eff     <- c(0, max(y_ticks_eff))
-y_labels_eff <- sprintf("%.2f", y_ticks_eff)
-
-set_par <- function(ncol = 1) {
+set_par <- function() {
   par(
-    mfrow    = c(1, ncol),
     mar      = c(6.5, 8.5, 2.5, 2.0),
     oma      = c(0.5, 0.5, 0.5, 0.5),
     mgp      = c(5.2, 1.5, 0),
-    cex.lab  = 2.2,
-    cex.axis = 1.6,
+    cex.lab  = 2.6,
+    cex.axis = 2.1,
     las      = 1
   )
 }
@@ -139,12 +131,11 @@ render_elppd_panel <- function() {
   points(h2$S, h2$elppd_hat, col = COL_M2, pch = 1, cex = 1.6, lwd = 2.0)
 
   sep_txt <- if (!is.na(sep_S)) {
-    bquote("Separation (" * italic(S)[sep] == .(format(sep_S, big.mark = ",")) * ")")
+    bquote("Separation (" * italic(S)[sep] == .(format(sep_S, big.mark = ",", scientific = FALSE)) * ")")
   } else {
     expression("No separation")
   }
 
-  d_pred <- d_M1 - 1
   legend("topright", inset = c(0.025, 0.025),
          legend = c(
            as.expression(bquote(italic(M)[1] ~ "(Logistic link)")),
@@ -162,42 +153,9 @@ render_elppd_panel <- function() {
   box(lwd = 1.8)
 }
 
-render_eff_panel <- function() {
-  draw_frame(ylim_eff, y_ticks_eff, y_labels_eff,
-             expression(widehat(ESS)(italic(S)) / italic(S)))
-
-  if (!is.na(sep_S)) abline(v = sep_S, col = COL_SEP, lty = 4, lwd = 3.0)
-
-  lines(h1$S,  eff_m1, col = COL_M1, lwd = 3.0, lty = 1)
-  points(h1$S, eff_m1, col = COL_M1, pch = 19, cex = 1.5)
-  lines(h2$S,  eff_m2, col = COL_M2, lwd = 3.0, lty = 2)
-  points(h2$S, eff_m2, col = COL_M2, pch = 17, cex = 1.5)
-
-  legend("topright", inset = c(0.025, 0.025),
-         legend = c(
-           expression(italic(M)[1] ~ "(Logistic):" ~ widehat(ESS)[elppd] / italic(S)),
-           expression(italic(M)[2] ~ "(Cloglog):" ~ widehat(ESS)[elppd] / italic(S))
-         ),
-         col = c(COL_M1, COL_M2),
-         pch = c(19, 17),
-         lty = c(1, 2),
-         lwd = c(3.0, 3.0),
-         pt.cex = c(1.5, 1.5),
-         bty = "o", bg = adjustcolor("white", 0.94), box.col = "grey75",
-         cex = 1.35, y.intersp = 1.15)
-  box(lwd = 1.8)
-}
-
 ## Export
-pdf("elpd_tracking_arrythmia.pdf", width = 9, height = 7.5)
-set_par(1)
+pdf("elpd_mcse_arrhythmia.pdf", width = 10, height = 9.5, useDingbats = FALSE)
+set_par()
 render_elppd_panel()
 invisible(dev.off())
-cat("Saved: elpd_tracking_arrythmia.pdf\n")
-
-pdf("elpd_mcse_arrythmia.pdf", width = 16, height = 7.5)
-set_par(2)
-render_elppd_panel()
-render_eff_panel()
-invisible(dev.off())
-cat("Saved: elpd_mcse_arrythmia.pdf\n")
+cat("Saved: elpd_mcse_arrhythmia.pdf\n")

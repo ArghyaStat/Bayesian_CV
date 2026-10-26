@@ -1,4 +1,4 @@
-# Model M1 (Joint Covariance): K-fold ELJPD via Gibbs sampling from q_mix
+# Latent covariance misspecification (Section 7.2), model M1 (joint covariance): 10-fold ELJPD from a q_mix chain
 
 rm(list = ls())
 invisible(gc())
@@ -14,7 +14,6 @@ if (requireNamespace("this.path", quietly = TRUE)) {
 
 
 source("vecchia.R")
-source("aux_functions_joint.R")
 source("eljpd.utils.R")
 Rcpp::sourceCpp("gibbs_kfold_joint.cpp")
 
@@ -24,7 +23,7 @@ k.folds    <- 10
 m          <- 20
 t.index    <- 140
 S_star     <- 1e3
-S_max      <- 1e4
+S_max      <- 3e4
 S_step     <- 1e3
 S_vals     <- seq(S_star, S_max, by = S_step)
 tuning.phi <- 1e-2

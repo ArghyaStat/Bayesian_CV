@@ -1,6 +1,4 @@
-# Brute-force 10-fold ELJPD reference for M1 (nu = 0.5) and M2 (nu = 1):
-# for each fold k, a separate chain targets p(theta | y_{-D_k}) and
-#   elpd_k = log S^{-1} sum_s p(y_{D_k} | y_{-D_k}, theta_s).
+# Brute-force 10-fold ELJPD reference for M1 and M2: one chain on p(theta | y_{-D_k}) per fold k
 
 rm(list = ls())
 invisible(gc())

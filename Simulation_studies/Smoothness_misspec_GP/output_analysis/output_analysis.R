@@ -1,21 +1,13 @@
-## ==============================================================================
-## output_analysis.R
-## Smoothness misspecification: M1 (nu = 0.5, true) vs M2 (nu = 1), 10-fold ELJPD
-##
-## elpd_mcse.pdf
-##   Panel (a): single-chain ELJPD tracking with 95% MCSE intervals and the
-##              separation point S_sep (non-replicated study).
-##   Panel (b): replicated termination distributions (S_term, ELJPD_hat) for
-##              eps = 0.05 and 0.025 (ESS targets 6147 and 24585), 500 reps.
-## Dashed lines: exact ELJPD (exact_reference.RData), else brute-force references.
-## ==============================================================================
+## Smoothness misspecification in GP regression (Section 6.2): M1 (nu = 0.5, true) vs M2 (nu = 1), 10-fold ELJPD
+## elpd_mcse_smoothness.pdf: (a) single-chain ELJPD tracking with 95% MC intervals and S_sep;
+##                           (b) replicated termination points (S_term, ELJPD_hat) for eps = 0.05, 0.025
 
 rm(list = ls())
 
 if (requireNamespace("this.path", quietly = TRUE)) setwd(this.path::here())
 
-nonrep_dir <- "."                        # single-chain outputs on the phi = 0.25 data
-ref_dir    <- "../non_replicated_study"
+nonrep_dir <- "../non_replicated_study"
+ref_dir    <- nonrep_dir
 rep_dir    <- "../replicated_study"
 
 eps_vals   <- c(0.05, 0.025)
@@ -35,6 +27,7 @@ rp <- list(M1 = load_env(file.path(rep_dir, "M1_outputs_reps.RData"))$results_re
 
 exact_file <- file.path(ref_dir, "exact_reference.RData")
 bf_file    <- file.path(ref_dir, "bruteforce_reference.RData")
+# Reference ELJPD: exact if available, else brute force
 ref_label  <- if (file.exists(exact_file)) "Exact" else "Brute force"
 ref <- if (file.exists(exact_file)) {
   ex <- load_env(exact_file)$exact
@@ -43,8 +36,6 @@ ref <- if (file.exists(exact_file)) {
   bf <- load_env(bf_file)$bf
   c(M1 = bf$M1$eljpd, M2 = bf$M2$eljpd)
 } else NULL
-
-# ---- Termination and separation ------------------------------------------------
 
 # First checkpoint with ESS_ELJPD >= target (S_max if never reached)
 get_term <- function(h, target) {
@@ -72,8 +63,7 @@ term_rp <- lapply(rp, function(res) lapply(ess_target, function(tg)
   do.call(rbind, lapply(res, function(x) get_term(x$history, tg)))))
 S_sep <- compute_S_sep(nr$M1, nr$M2)
 
-# ---- Summary -------------------------------------------------------------------
-
+# Summary of replicated termination points
 summ <- do.call(rbind, lapply(names(term_rp), function(mod) {
   do.call(rbind, lapply(seq_along(eps_vals), function(j) {
     d <- term_rp[[mod]][[j]]
@@ -95,11 +85,9 @@ rank_ok <- sapply(seq_along(eps_vals), function(j)
 if (!is.null(ref))
   cat(sprintf("%s ELJPD  M1: %.4f  M2: %.4f  difference: %.4f\n", ref_label,
               ref["M1"], ref["M2"], ref["M1"] - ref["M2"]))
-cat(sprintf("Non-replicated separation point S_sep: %s\n", format(S_sep, big.mark = ",")))
+cat(sprintf("Non-replicated separation point S_sep: %s\n", format(S_sep, big.mark = ",", scientific = FALSE)))
 print(summ, digits = 4, row.names = FALSE)
 cat(sprintf("P(ELJPD_hat M1 > M2), eps = %s: %.3f\n", eps_vals, rank_ok), sep = "")
-
-# ---- Colours -------------------------------------------------------------------
 
 COL_M1_A <- "#08519C"   # deep royal blue
 COL_M2_A <- "#D73027"   # deep crimson red
@@ -107,8 +95,7 @@ COL_SEP  <- "#006837"   # forest green
 COL_05   <- c(M1 = "#D73027", M2 = "#D4AC0D")   # crimson / golden-yellow
 COL_025  <- c(M1 = "#08519C", M2 = "#6BAED6")   # royal blue / sky blue
 
-# Equally spaced ticks on [0, S_max]: the round step (1, 2, 2.5, 3, 5 x 10^k) that divides
-# S_max exactly and is closest to S_max / n_int, e.g. 30K for S_max = 150K
+# Equally spaced round ticks on [0, S_max], e.g. 30K steps for S_max = 150K
 k_ticks <- function(S_max, n_int = 5) {
   base  <- 10^floor(log10(S_max / n_int))
   cand  <- c(1, 2, 2.5, 3, 5, 10) * base
@@ -121,13 +108,11 @@ k_ticks <- function(S_max, n_int = 5) {
 ci <- lapply(nr, function(h) cbind(lo = h$eljpd_hat - z_crit * h$asymp_se,
                                    hi = h$eljpd_hat + z_crit * h$asymp_se))
 
-# ---- Figure: elpd_mcse.pdf -----------------------------------------------------
-
 pdf("elpd_mcse_smoothness.pdf", width = 20, height = 9.5, useDingbats = FALSE)
 par(mfrow = c(1, 2), mar = c(6.5, 11, 2.5, 2.0), oma = rep(0.5, 4),
     mgp = c(5.2, 1.5, 0), cex.lab = 2.6, cex.axis = 2.1, las = 1)
 
-# Panel (a): single-chain ELJPD tracking
+# Panel (a): single-chain ELJPD tracking and separation point
 xlim1 <- c(0, max(nr$M1$S))
 ylim1 <- range(unlist(ci), ref)
 ylim1 <- ylim1 + c(-0.05, 0.25) * diff(ylim1)
@@ -157,7 +142,7 @@ lines(nr$M2$S, nr$M2$eljpd_hat, col = COL_M2_A, lwd = 3.5)
 points(nr$M2$S, nr$M2$eljpd_hat, col = COL_M2_A, pch = 1, cex = 1.8, lwd = 2.2)
 
 sep_txt <- if (!is.na(S_sep)) {
-  bquote("Separation (" * italic(S)[sep] == .(format(S_sep, big.mark = ",")) * ")")
+  bquote("Separation (" * italic(S)[sep] == .(format(S_sep, big.mark = ",", scientific = FALSE)) * ")")
 } else expression("No separation")
 
 leg_a <- list(legend = c(expression(italic(M)[1] ~ (nu == 0.5) ~ "(True)"),

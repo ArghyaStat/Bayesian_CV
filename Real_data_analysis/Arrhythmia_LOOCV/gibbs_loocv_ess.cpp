@@ -1,35 +1,5 @@
-// =============================================================================
-// gibbs_loocv_ess.cpp  — component-wise elliptical slice within Gibbs
-//
-// Same target as gibbs_loocv.cpp, the LOOCV mixture proposal
-//
-//     q_mix(theta, phi, k)  ∝  p(theta | phi) p(phi) * p(y_{-k} | theta),   k = 1,...,n
-//
-// under the REGULARISED HORSESHOE prior (Piironen & Vehtari, 2017):
-//
-//   theta_0 ~ N(0, 100)                                   [intercept]
-//   theta_j | lambda_j, tau, c ~ N(0, 1 / P_j),  P_j = 1/(tau^2 lambda_j^2) + 1/c^2
-//   lambda_j ~ C+(0,1),  tau ~ C+(0, tau0),  c^2 ~ InvGamma(df/2, df*s^2/2)
-//
-// MODEL M1: Logistic link     p(y=1 | eta) = 1 / (1 + exp(-eta))
-// MODEL M2: Cloglog link      p(y=1 | eta) = 1 - exp(-exp(eta))
-//
-// Gibbs iteration (HMC replaced by component-wise elliptical slice sampling):
-//   1. Fold draw    k | theta            exact, Gumbel-max                [block]
-//   2. Coefficients theta_j | theta_{-j}, phi, k   for j = 0,...,D
-//      Univariate elliptical slice sampling (Murray, Adams & MacKay, 2010)
-//      with the conditional prior N(0, 1/P_j) as the Gaussian factor and
-//      prod_{i != k} p(y_i | eta_i) as the likelihood factor.  The linear
-//      predictor eta is updated in O(n) per proposal.
-//   3. Horseshoe    phi | theta
-//      3a. lambda_1..lambda_D are conditionally independent given
-//          (theta, tau, c^2), so the loop is one block update     [block]
-//      3b. tau,  3c. joint (tau, lambda) shift,  3d. c^2   — slice sampling
-//   4. Interweaving (ASIS; Yu & Meng, 2011) for tau:
-//      z_j = theta_j * sqrt(P_j) held fixed, tau | z, lambda, c^2, theta_0, k
-//      updated by slice sampling (it now sees the likelihood), then
-//      theta_j = z_j / sqrt(P_j(tau)).
-// =============================================================================
+// LOO-CV mixture q_mix(theta, phi, k) for binary regression (logit or cloglog link) with a regularised horseshoe prior
+// Gibbs sweep: k | theta, elliptical slice for each theta_j, horseshoe hyperparameters, ASIS update of tau
 
 // [[Rcpp::depends(RcppArmadillo)]]
 #include <RcppArmadillo.h>
@@ -45,9 +15,6 @@ namespace {
 
 enum LinkType { LINK_LOGISTIC, LINK_CLOGLOG };
 
-// ---------------------------------------------------------------------------
-//  Log-likelihood of one observation
-// ---------------------------------------------------------------------------
 inline double softplus(double x) {
   return (x > 0.0) ? x + std::log1p(std::exp(-x)) : std::log1p(std::exp(x));
 }
@@ -59,9 +26,7 @@ inline double loglik_obs(double y, double eta, LinkType link) {
   return (y > 0.5) ? std::log(-std::expm1(-u)) : -u;
 }
 
-// ---------------------------------------------------------------------------
-//  Slice sampler (Neal 2003: stepping-out + shrinkage)
-// ---------------------------------------------------------------------------
+// Slice sampler (Neal, 2003: stepping-out and shrinkage)
 template <class F>
 inline double slice_sample(double x0, F logf, double w, int max_steps = 30) {
   const double logy = logf(x0) - exp_rand();
@@ -77,9 +42,7 @@ inline double slice_sample(double x0, F logf, double w, int max_steps = 30) {
   return x0;
 }
 
-// ---------------------------------------------------------------------------
-//  Horseshoe hyperparameter update  phi | theta  (identical to gibbs_loocv.cpp)
-// ---------------------------------------------------------------------------
+// Horseshoe hyperparameter update phi | theta
 inline void update_horseshoe(
     arma::vec& ul, double& lt, double& lc2,
     const std::vector<double>& theta,
@@ -90,7 +53,7 @@ inline void update_horseshoe(
   const double ic2 = std::exp(-lc2);
   const double e2t = std::exp(-2.0 * lt);
 
-  // 3a. Local scales lambda_j (conditionally independent: block update)
+  // Local scales lambda_j (conditionally independent: block update)
   for (int j = 0; j < D; ++j) {
     const double b2 = theta[1 + j] * theta[1 + j];
     auto logf = [&](double u) {
@@ -105,7 +68,7 @@ inline void update_horseshoe(
     b2_j[j] = theta[1 + j] * theta[1 + j];
   }
 
-  // 3b. Global scale tau
+  // Global scale tau
   {
     const double ic2c = std::exp(-lc2);
     auto logf = [&](double t) {
@@ -122,7 +85,7 @@ inline void update_horseshoe(
     lt = slice_sample(lt, logf, 1.0);
   }
 
-  // 3c. Joint scale move (tau * lambda_j preserved)
+  // Joint scale move (tau * lambda_j preserved)
   {
     auto logf = [&](double sh) {
       const double tn = lt + sh;
@@ -141,7 +104,7 @@ inline void update_horseshoe(
     for (int j = 0; j < D; ++j) { ul[j] -= sh; a_j[j] = std::exp(-2.0 * ul[j]); }
   }
 
-  // 3d. Slab variance c^2
+  // Slab variance c^2
   {
     const double e2t2 = std::exp(-2.0 * lt);
     auto logf = [&](double w) {
@@ -157,22 +120,14 @@ inline void update_horseshoe(
     lc2 = slice_sample(lc2, logf, 1.0);
   }
 
-  // 3e. Refresh prior precision vector
+  // Refresh prior precision vector
   const double e2t_new = std::exp(-2.0 * lt), ic2_new = std::exp(-lc2);
   pprec[0] = 1.0 / tau2_int;
   for (int j = 0; j < D; ++j)
     pprec[1 + j] = a_j[j] * e2t_new + ic2_new;
 }
 
-// ---------------------------------------------------------------------------
-//  Step 4: non-centred (interweaving) update of tau
-//
-//  With z_j = theta_j sqrt(P_j) and (lambda, c^2, theta_0, k) fixed,
-//      theta_j(t) = z_j / sqrt(exp(-2 u_j - 2 t) + exp(-v)),   t = log tau,
-//  and z ~ N(0, I) a priori does not depend on t, so
-//      log q(t | z, .) = sum_{i != k} ll_i(eta_i(t)) + log C+(e^t; tau0) + t.
-//  Each evaluation costs O(n D).
-// ---------------------------------------------------------------------------
+// Non-centred (ASIS) slice update of t = log tau with z_j = theta_j sqrt(P_j) held fixed
 inline void asis_tau_update(
     std::vector<double>& theta, const arma::vec& ul, double& lt, double lc2,
     double lt0, double global_df, int D, int n,
@@ -210,16 +165,7 @@ inline void asis_tau_update(
   }
 }
 
-// ---------------------------------------------------------------------------
-//  Step 2: one univariate elliptical slice update of theta_j
-//
-//  Full conditional  ∝  N(theta_j; 0, 1/P_j) * exp{ sum_{i != k} ll_i(eta_i) }.
-//  Proposal on the ellipse  theta_j' = theta_j cos(a) + nu sin(a),
-//  nu ~ N(0, 1/P_j).  Only the change in log-likelihood is needed:
-//      Delta(theta_j') = sum_{i != k} [ ll(eta_i + x_ij (theta_j' - theta_j)) - ll_i ].
-//  On acceptance eta and the cached ll are updated in place.
-//  Returns the number of likelihood evaluations used.
-// ---------------------------------------------------------------------------
+// Univariate elliptical slice update of theta_j with prior N(0, 1/P_j); returns number of likelihood evaluations
 inline int ess_update_coord(
     int j, int k, int n,
     const double* col, const double* y,
@@ -257,9 +203,7 @@ inline int ess_update_coord(
   return n_eval;  // bracket collapsed onto the current point: keep theta_j
 }
 
-// =============================================================================
-//  Core ESS-within-Gibbs runner
-// =============================================================================
+// Elliptical-slice-within-Gibbs runner
 List run_gibbs_loocv_rhs_ess(
     const arma::mat& X,
     const arma::vec& y,
@@ -326,9 +270,7 @@ List run_gibbs_loocv_rhs_ess(
     }
     for (int i = 0; i < n; ++i) ll[i] = loglik_obs(yp[i], eta[i], link_type);
 
-    // -----------------------------------------------------------------------
-    // Step 1: Fold draw k | theta  (Gumbel-max on -ll)
-    // -----------------------------------------------------------------------
+    // Fold draw k | theta (Gumbel-max on -ll)
     int k = 0;
     double best = R_NegInf;
     for (int i = 0; i < n; ++i) {
@@ -337,9 +279,7 @@ List run_gibbs_loocv_rhs_ess(
     }
     folds[it] = k + 1;
 
-    // -----------------------------------------------------------------------
-    // Step 2: theta_j | theta_{-j}, phi, k  by univariate ESS, j = 0..D
-    // -----------------------------------------------------------------------
+    // theta_j | theta_{-j}, phi, k by univariate elliptical slice, j = 0..D
     for (int sw = 0; sw < n_sweeps; ++sw) {
       for (int j = 0; j < d; ++j) {
         total_eval += ess_update_coord(
@@ -350,16 +290,12 @@ List run_gibbs_loocv_rhs_ess(
       }
     }
 
-    // -----------------------------------------------------------------------
-    // Step 3: Horseshoe phi | theta
-    // -----------------------------------------------------------------------
+    // Horseshoe hyperparameters phi | theta
     update_horseshoe(ul, lt, lc2, theta,
                      lt0, half_sdf, sdf_s2_half, global_df,
                      D, a_j, b2_j, pprec, tau2_int);
 
-    // -----------------------------------------------------------------------
-    // Step 4: interweaving (non-centred) update of tau
-    // -----------------------------------------------------------------------
+    // Interweaving (non-centred) update of tau
     if (interweave_tau)
       asis_tau_update(theta, ul, lt, lc2, lt0, global_df, D, n,
                       Xp, yp, k, link_type, pprec, tau2_int,
@@ -383,9 +319,7 @@ List run_gibbs_loocv_rhs_ess(
 
 } // anonymous namespace
 
-// =============================================================================
-//  Exported R function
-// =============================================================================
+// Exported R function
 
 // [[Rcpp::export]]
 List gibbs_loocv_rhs_ess_cpp(

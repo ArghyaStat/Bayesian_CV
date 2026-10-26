@@ -1,8 +1,5 @@
-## Real data analysis: US wildfire study (mainland US, N = 3,503 grid cells)
-## Mixed responses: BA (burned area, Gaussian) and CNT (wildfire count, Poisson)
-## M1: joint covariance model (separable cross-covariance Matern GP)
-## M2: separate covariance model (independent univariate GPs)
-## Outputs: elpd_tracking.pdf, elpd_mcse.pdf
+## Latent covariance misspecification in mixed-type spatial data (Section 7.2): US wildfires, N = 3,503 grid cells
+## M1: joint (separable cross-covariance) GP, M2: independent GPs; output elpd_mcse_spatial.pdf
 
 rm(list = ls())
 invisible(gc())
@@ -119,8 +116,7 @@ if (delta_elpd > 0 && ci_lo > 0) {
   cat("  Conclusion           : No statistically significant difference detected.\n\n")
 }
 
-## Separation point S_sep: earliest S after which the model leading at S_max
-## keeps a strictly disjoint 95% interval through S_max
+## S_sep: earliest S after which the model leading at S_max keeps a disjoint 95% interval
 z_crit <- qnorm(0.975)
 
 m1_lo <- h1_elpd - z_crit * h1_asymp_se
@@ -162,17 +158,7 @@ if (!is.na(sep_S)) {
   cat(sprintf("  Separation holds permanently from S = %s through S_max = %s.\n",
               format(as.integer(sep_S), big.mark = ","),
               format(as.integer(S_max), big.mark = ",")))
-
-  if (any(S_vals == 80000)) {
-    k_80   <- which(S_vals == 80000)
-    gap_80 <- winner_lo[k_80] - loser_hi[k_80]
-    cat("  Asymptotic stabilization plateau reached at S = 80,000 (80K):\n")
-    cat(sprintf("    %s lower 95%% bound : %.2f\n", winner_name, winner_lo[k_80]))
-    cat(sprintf("    %s upper 95%% bound : %.2f\n", loser_name, loser_hi[k_80]))
-    cat(sprintf("    Stationary separation gap : +%.2f (ELPD units)\n\n", gap_80))
-  } else {
-    cat("\n")
-  }
+  cat("\n")
 } else {
   cat("  Confidence intervals continue to overlap up to S_max; no complete separation attained.\n\n")
 }
@@ -183,8 +169,6 @@ COL_M2     <- "#D73027"
 COL_SEP    <- "#006837"
 COL_GRID   <- "grey92"
 COL_BOX    <- "grey75"
-COL_M1_SEC <- "#2171B5"
-COL_M2_SEC <- "#FC8D59"
 
 xlim_common <- range(S_vals)
 s_ticks     <- pretty(S_vals, n = 6)
@@ -201,31 +185,12 @@ y_ticks_elpd  <- pretty(c(elpd_all_lo - 0.05 * y_range_elpd, elpd_all_hi + 0.32 
 ylim_elpd     <- range(y_ticks_elpd)
 y_labels_elpd <- format(y_ticks_elpd, big.mark = ",")
 
-eff_pred_m1  <- h1_ess_pred / S_vals
-eff_pred_m2  <- h2_ess_pred / S_vals
-eff_param_m1 <- h1_min_ess / S_vals
-eff_param_m2 <- h2_min_ess / S_vals
-
-ratio_all_lo <- min(c(0, eff_pred_m1, eff_pred_m2, eff_param_m1, eff_param_m2), na.rm = TRUE)
-ratio_all_hi <- max(c(eff_pred_m1, eff_pred_m2, eff_param_m1, eff_param_m2), na.rm = TRUE)
-if (!is.finite(ratio_all_hi) || ratio_all_hi <= 0) ratio_all_hi <- 1.0
-y_range_ratio <- ratio_all_hi - ratio_all_lo
-
-y_ticks_ratio  <- pretty(c(ratio_all_lo, ratio_all_hi + 0.42 * y_range_ratio), n = 6)
-y_ticks_ratio  <- y_ticks_ratio[y_ticks_ratio >= 0]
-ylim_ratio     <- range(y_ticks_ratio)
-y_labels_ratio <- if (max(y_ticks_ratio) >= 10) {
-  format(y_ticks_ratio, trim = TRUE, big.mark = ",")
-} else {
-  sprintf("%.2f", y_ticks_ratio)
-}
-
-## Panel (a): ELPD tracking with 95% intervals and separation point
-render_panel_a <- function(legend_cex = 1.40) {
+## ELJPD tracking with 95% intervals and separation point
+render_elpd_panel <- function(legend_cex = 1.40) {
   plot(NA, xlim = xlim_common, ylim = ylim_elpd,
        xlab = expression("Iterations (" * italic(S) * ")"),
        ylab = "", main = "", xaxt = "n", yaxt = "n")
-  title(ylab = expression(widehat(ELJPD)(italic(S))), line = 6.2)
+  title(ylab = expression(widehat(ELJPD)(italic(S))), line = 8)
 
   axis(1, at = s_ticks, labels = s_labels, gap.axis = 0)
   axis(2, at = y_ticks_elpd, labels = y_labels_elpd)
@@ -269,75 +234,16 @@ render_panel_a <- function(legend_cex = 1.40) {
   box(lwd = 1.8)
 }
 
-## Panel (b): relative efficiency ESS / S
-render_panel_b <- function(legend_cex = 1.25) {
-  plot(NA, xlim = xlim_common, ylim = ylim_ratio,
-       xlab = expression("Iterations (" * italic(S) * ")"),
-       ylab = "", main = "", xaxt = "n", yaxt = "n")
-  title(ylab = expression(widehat(ESS)(italic(S)) / italic(S)), line = 4.8)
-
-  axis(1, at = s_ticks, labels = s_labels, gap.axis = 0)
-  axis(2, at = y_ticks_ratio, labels = y_labels_ratio)
-  abline(h = y_ticks_ratio, col = COL_GRID, lty = 1, lwd = 0.8)
-  abline(v = s_ticks,       col = COL_GRID, lty = 1, lwd = 0.8)
-
-  if (!is.na(sep_S)) abline(v = sep_S, col = COL_SEP, lty = 4, lwd = 3.2)
-  abline(h = 1.0, col = "grey60", lty = 2, lwd = 1.8)
-
-  lines(S_vals,  eff_pred_m1, col = COL_M1, lwd = 3.4, lty = 1)
-  points(S_vals, eff_pred_m1, col = COL_M1, pch = 19, cex = 1.7)
-  lines(S_vals,  eff_pred_m2, col = COL_M2, lwd = 3.4, lty = 2)
-  points(S_vals, eff_pred_m2, col = COL_M2, pch = 1, cex = 1.7, lwd = 2.2)
-
-  lines(S_vals,  eff_param_m1, col = COL_M1_SEC, lwd = 3.0, lty = 3)
-  points(S_vals, eff_param_m1, col = COL_M1_SEC, pch = 17, cex = 1.5)
-  lines(S_vals,  eff_param_m2, col = COL_M2_SEC, lwd = 3.0, lty = 3)
-  points(S_vals, eff_param_m2, col = COL_M2_SEC, pch = 2, cex = 1.5, lwd = 2.0)
-
-  legend("topright", inset = c(0.025, 0.025),
-         legend = c(
-           expression(italic(M)[1] ~ "(Joint):" ~ widehat(ESS)[ELJPD] / italic(S)),
-           expression(italic(M)[2] ~ "(Separate):" ~ widehat(ESS)[ELJPD] / italic(S)),
-           expression(italic(M)[1] ~ "(Joint):" ~ min[italic(j)] ~ widehat(ESS)(xi[italic(j)]) / italic(S)),
-           expression(italic(M)[2] ~ "(Separate):" ~ min[italic(j)] ~ widehat(ESS)(xi[italic(j)]) / italic(S)),
-           expression("Full Efficiency (" * widehat(ESS) / italic(S) == 1.0 * ")")
-         ),
-         col    = c(COL_M1, COL_M2, COL_M1_SEC, COL_M2_SEC, "grey60"),
-         pch    = c(19, 1, 17, 2, NA),
-         lty    = c(1, 2, 3, 3, 2),
-         lwd    = c(3.4, 3.4, 3.0, 3.0, 1.8),
-         pt.cex = c(1.7, 1.7, 1.5, 1.5, NA),
-         pt.lwd = c(NA, 2.2, NA, 2.0, NA),
-         bty    = "o", bg = adjustcolor("white", 0.94), box.col = COL_BOX,
-         cex    = legend_cex, y.intersp = 1.15)
-  box(lwd = 1.8)
-}
-
 ## Export
-pdf("elpd_tracking.pdf", width = 11, height = 9, useDingbats = FALSE)
+pdf("elpd_mcse_spatial.pdf", width = 10, height = 9.5, useDingbats = FALSE)
 par(
-  mar      = c(5.8, 9.2, 2.0, 2.0),
-  oma      = c(0.2, 0.2, 0.2, 0.2),
-  mgp      = c(3.8, 1.4, 0),
-  cex.lab  = 2.3,
-  cex.axis = 1.8,
-  las      = 1
-)
-render_panel_a(legend_cex = 1.45)
-invisible(dev.off())
-cat("Saved: elpd_tracking.pdf\n")
-
-pdf("elpd_mcse.pdf", width = 20, height = 9.5, useDingbats = FALSE)
-par(
-  mfrow    = c(1, 2),
-  mar      = c(5.8, 9.2, 2.5, 2.0),
+  mar      = c(6.5, 11, 2.5, 2.0),
   oma      = c(0.5, 0.5, 0.5, 0.5),
-  mgp      = c(3.8, 1.4, 0),
-  cex.lab  = 2.4,
-  cex.axis = 1.8,
+  mgp      = c(5.2, 1.5, 0),
+  cex.lab  = 2.6,
+  cex.axis = 2.1,
   las      = 1
 )
-render_panel_a(legend_cex = 1.40)
-render_panel_b(legend_cex = 1.25)
+render_elpd_panel(legend_cex = 1.45)
 invisible(dev.off())
-cat("Saved: elpd_mcse.pdf\n")
+cat("Saved: elpd_mcse_spatial.pdf\n")

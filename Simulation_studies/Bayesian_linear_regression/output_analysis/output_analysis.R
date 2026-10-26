@@ -1,18 +1,6 @@
-## ==============================================================================
-## output_analysis.R
-## Bayesian Linear Regression Case Study: n = 500, d = 250 (Mixture IS)
-##
-## Panel (a): Single-chain ELPPD tracking with 95% CI and separation point S_sep
-##            using updated non-replicated outputs up to S_max = 250,000.
-## Panel (b): Replicated termination distributions (S_term, ELPPD_hat) for
-##            eps = 0.05 & 0.025 across 500 independent MCMC runs.
-##            - solid round points with distinct harmonious shades for M1 and M2
-##            - eps = 0.05: deep crimson red (M1) vs soft coral-rose red (M2)
-##            - eps = 0.025: deep royal blue (M1) vs soft sky blue (M2)
-## Figure 2 : Superimposed boxplots across S iterations:
-##            - Panel (a): Raw effective sample sizes ESS_elpd and minESS_xi
-##            - Panel (b): Relative efficiency ratios widehat(ESS)/S
-## ==============================================================================
+## Subset selection in Bayesian linear regression (Section 6.1): M1 (true) vs M2 (one predictor dropped)
+## elpd_mcse_linreg.pdf: (a) single-chain ELPPD tracking with 95% MC intervals and S_sep;
+##                       (b) replicated termination points (S_term, ELPPD_hat) for eps = 0.05, 0.025
 
 rm(list = ls())
 gc()
@@ -21,40 +9,36 @@ if (requireNamespace("this.path", quietly = TRUE)) {
   setwd(this.path::here())
 }
 
-S_star <- 2e4
-S_max  <- 2.5e5
-S_step <- 5e3
-S_vals <- seq(S_star, S_max, by = S_step)  # 47 checkpoints
-reps   <- 500
-
 z_crit        <- qnorm(0.975)             # 1.959964
 ess_target05  <- 4 * z_crit^2 / (0.05^2)   # ~6146.33
 ess_target025 <- 4 * z_crit^2 / (0.025^2)  # ~24585.34
 
+nonrep_dir <- "../non_replicated_study"
+rep_dir    <- "../replicated_study"
 
-load("M1_outputs.RData")
+# Single-chain runs (S up to 250K)
+load(file.path(nonrep_dir, "M1_outputs.RData"))
 nr_M1_history <- history
 nr_elpd_M1    <- elpd_M1
 nr_elpd_M2    <- elpd_M2
 rm(history, acc_mix, elpd_diff_val)
 
-load("M2_outputs.RData")
+load(file.path(nonrep_dir, "M2_outputs.RData"))
 nr_M2_history <- history
 rm(history, acc_mix, elpd_diff_val, R2_dropped, tau2_dropped, dropped_col)
 
-# Replicated runs (500 reps, S_star = 20K to S_max = 250K)
-load("M1_outputs_reps.RData")
+# Replicated runs (500 reps, S from 20K to 250K)
+load(file.path(rep_dir, "M1_outputs_reps.RData"))
 rep_M1      <- results_reps
 rep_elpd_M1 <- elpd_M1
 rep_elpd_M2 <- elpd_M2
 rm(results_reps, elpd_diff_val)
 
-load("M2_outputs_reps.RData")
+load(file.path(rep_dir, "M2_outputs_reps.RData"))
 rep_M2 <- results_reps
 rm(results_reps, elpd_diff_val, R2_dropped, tau2_dropped, dropped_col)
 
-# 2. Helper Functions: Termination and Data-Adaptive Separation Detection
-
+# First checkpoint with ESS_ELPPD >= target (S_max if never reached)
 get_term <- function(h, ess_target) {
   idx_ok <- which(h$ess_elppd >= ess_target)
   k      <- if (length(idx_ok) > 0) idx_ok[1] else length(h$S)
@@ -64,8 +48,8 @@ get_term <- function(h, ess_target) {
        k         = k)
 }
 
-## Data-adaptive separation point S_sep for single chain tracking:
-## Earliest checkpoint S after which lower bound of M1 > upper bound of M2 through S_max
+# Earliest checkpoint after which the lower 95% bound of M1 stays above the upper bound of M2
+# (asymp_se stores the asymptotic variance, hence the square root)
 compute_S_sep <- function(h1, h2, z_crit = qnorm(0.975)) {
   hw1 <- z_crit * sqrt(pmax(h1$asymp_se, 0))
   hw2 <- z_crit * sqrt(pmax(h2$asymp_se, 0))
@@ -80,8 +64,7 @@ compute_S_sep <- function(h1, h2, z_crit = qnorm(0.975)) {
   return(NA_real_)
 }
 
-## Data-adaptive separation point across replicated chains:
-## Supports median of per-replicate S_sep or checkpoint-wise empirical quantile envelopes
+# Separation point across replicates: median per-replicate S_sep or quantile envelopes
 compute_replicated_S_sep <- function(rep_M1, rep_M2, z_crit = qnorm(0.975),
                                      method = c("median_per_rep", "quantile_envelope"),
                                      alpha = 0.05) {
@@ -140,30 +123,20 @@ t05_y_M2 <- sapply(t05_M2, `[[`, "ELPPD_hat")
 t025_s_M2 <- sapply(t025_M2, `[[`, "S_term")
 t025_y_M2 <- sapply(t025_M2, `[[`, "ELPPD_hat")
 
-# 3. Colour Palette Definitions
-# ==============================================================================
-# Panel (a): Deep royal blue (M1) and crimson red (M2)
+# Colours: panel (a) by model, panel (b) by eps and model
 COL_M1_A <- "#08519C"   # deep royal blue
 COL_M2_A <- "#D73027"   # deep crimson red
 COL_SEP  <- "#006837"   # forest green for separation
-
-# Panel (b): Distinct solid shades (no open points, no wireframe clutter)
-# eps = 0.05: deep crimson red for M1, rich golden-yellow for M2
 COL_05_M1 <- "#D73027"   # deep crimson red
 COL_05_M2 <- "#D4AC0D"   # rich golden-yellow
-
-# eps = 0.025: deep royal blue for M1, soft sky blue for M2
 COL_025_M1 <- "#08519C"   # deep royal blue
 COL_025_M2 <- "#6BAED6"   # soft sky-blue tint
 
-# ==============================================================================
-# 4. FIGURE 1: Side-by-Side (a) Single Chain and (b) Replicated Scatter
-# ==============================================================================
-# Uniform x-axis ticks across all plots: 20K to 240K spaced by 20K
+# x-axis ticks: 20K to 240K by 20K
 s_ticks_uniform  <- seq(20e3, 240e3, by = 20e3)
 s_labels_uniform <- paste0(s_ticks_uniform / 1000, "K")
 
-pdf_file1 <- "elppd_mcse.pdf"
+pdf_file1 <- "elpd_mcse_linreg.pdf"
 pdf(pdf_file1, width = 20, height = 9.5, useDingbats = FALSE)
 
 par(
@@ -176,9 +149,7 @@ par(
   las      = 1
 )
 
-# ------------------------------------------------------------------------------
-# PANEL (a): Dynamic ELPPD Tracking & Point of Separation (S up to 250,000)
-# ------------------------------------------------------------------------------
+# Panel (a): single-chain ELPPD tracking and separation point
 h1 <- nr_M1_history
 h2 <- nr_M2_history
 
@@ -190,7 +161,6 @@ m1_hi <- h1$elppd_hat + hw1
 m2_lo <- h2$elppd_hat - hw2
 m2_hi <- h2$elppd_hat + hw2
 
-# Separation point: data-adaptive detection via compute_S_sep()
 sep_S <- compute_S_sep(h1, h2, z_crit = z_crit)
 
 ylim1 <- c(-855.0, -825.0)
@@ -221,22 +191,21 @@ if (!is.na(sep_S)) {
   abline(v = sep_S, col = COL_SEP, lty = 4, lwd = 3.5)
 }
 
-# 95% Confidence interval arrows
+# 95% MC intervals
 arrows(h1$S, m1_lo, h1$S, m1_hi, code = 3, angle = 90, length = 0.08,
        col = adjustcolor(COL_M1_A, 0.50), lwd = 2.8)
 arrows(h2$S, m2_lo, h2$S, m2_hi, code = 3, angle = 90, length = 0.08,
        col = adjustcolor(COL_M2_A, 0.55), lwd = 2.8)
 
-# Trajectories: M1 solid filled circle (pch=19), M2 open circle (pch=1)
+# Trajectories: M1 filled circles, M2 open circles
 lines(h1$S,  h1$elppd_hat, col = COL_M1_A, lwd = 3.5)
 points(h1$S, h1$elppd_hat, col = COL_M1_A, pch = 19, cex = 1.8)
 
 lines(h2$S,  h2$elppd_hat, col = COL_M2_A, lwd = 3.5)
 points(h2$S, h2$elppd_hat, col = COL_M2_A, pch = 1,  cex = 1.8, lwd = 2.2)
 
-# Legend placed in top-right
 sep_legend_txt <- if (!is.na(sep_S)) {
-  bquote("Separation (" * italic(S)[sep] == .(format(sep_S, big.mark = ",")) * ")")
+  bquote("Separation (" * italic(S)[sep] == .(format(sep_S, big.mark = ",", scientific = FALSE)) * ")")
 } else {
   expression("No separation")
 }
@@ -260,9 +229,7 @@ legend("topright", inset = c(0.025, 0.025),
 
 box(lwd = 1.8)
 
-# ------------------------------------------------------------------------------
-# PANEL (b): Replicated Termination Distributions (S_term, ELPPD_hat)
-# ------------------------------------------------------------------------------
+# Panel (b): replicated termination points (S_term, ELPPD_hat)
 xlim2 <- c(20e3, 250e3)
 ylim2 <- c(-855.0, -825.0)
 
@@ -286,19 +253,18 @@ abline(v = s_ticks2, col = "grey92", lty = 1, lwd = 0.8)
 abline(h = rep_elpd_M1, col = "grey35", lty = 2, lwd = 3.0)
 abline(h = rep_elpd_M2, col = "grey35", lty = 2, lwd = 3.0)
 
-# eps = 0.05: Crimson (M1) and Golden-yellow (M2)
+# eps = 0.05
 points(t05_s_M2, t05_y_M2,
        col = adjustcolor(COL_05_M2, 0.75), pch = 19, cex = 1.05)
 points(t05_s_M1, t05_y_M1,
        col = adjustcolor(COL_05_M1, 0.70), pch = 19, cex = 1.05)
 
-# eps = 0.025: Blue family
+# eps = 0.025
 points(t025_s_M2, t025_y_M2,
        col = adjustcolor(COL_025_M2, 0.65), pch = 19, cex = 1.05)
 points(t025_s_M1, t025_y_M1,
        col = adjustcolor(COL_025_M1, 0.70), pch = 19, cex = 1.05)
 
-# Legend placed cleanly at bottom-right (termination distributions)
 legend("topright", inset = c(0.025, 0.025),
        legend = c(
          expression(epsilon == 0.05 * ":" ~ italic(M)[1] ~ "(True)"),
@@ -315,218 +281,7 @@ legend("topright", inset = c(0.025, 0.025),
        bty   = "o", bg = adjustcolor("white", 0.94), box.col = "grey75",
        cex   = 1.35, y.intersp = 1.15)
 
-## Note on data-adaptive replicated S_sep:
-## If one wishes to compute the separation point across the 500 replicated runs,
-## call compute_replicated_S_sep(rep_M1, rep_M2, z_crit = z_crit):
-##   - method = 'median_per_rep': median S_sep across runs = 60,000 (IQR: [35K, 88.8K])
-##   - method = 'quantile_envelope': 95% envelope separation S_sep = 85,000
-## Panel (b) displays the bivariate termination scatter (S_term, ELPPD_hat), which
-## cleanly separates M1 and M2 in ELPPD without an arbitrary partition across S_term.
-
 box(lwd = 1.8)
 
 dev.off()
 cat(sprintf("Saved %s\n", pdf_file1))
-
-# 5. FIGURE 2: Superimposed Boxplots of ESS and Relative Efficiency (ESS / S)
-# ==============================================================================
-
-n_steps <- length(S_vals)
-ess_elpd_mat   <- matrix(NA_real_, reps, n_steps)
-min_ess_xi_mat <- matrix(NA_real_, reps, n_steps)
-
-for (r in seq_len(reps)) {
-  h <- rep_M1[[r]]$history
-  m <- match(S_vals, h$S)
-  valid <- !is.na(m)
-  ess_elpd_mat[r, valid]   <- h$ess_elppd[m[valid]]
-  min_ess_xi_mat[r, valid] <- h$minESS_xi[m[valid]]
-}
-
-# Compute relative efficiency ratios: ESS / S (current value of S)
-ratio_elpd   <- sweep(ess_elpd_mat, 2, S_vals, "/")
-ratio_min_xi <- sweep(min_ess_xi_mat, 2, S_vals, "/")
-
-COL_ESS_ELPD <- "#D73027"   # deep crimson red
-COL_MIN_ESS  <- "#2166AC"   # deep royal blue
-
-box_w   <- S_step * 0.45
-xlim_bp <- c(15e3, 255e3)
-
-# Helper to draw boxplot
-draw_bxp <- function(vals, at_pos, bw, fill_col, border_col) {
-  vals <- vals[is.finite(vals)]
-  if (length(vals) < 5L) return(invisible(NULL))
-  bp <- boxplot(vals, plot = FALSE)
-  bxp(bp, at = at_pos, add = TRUE, boxwex = bw,
-      col = fill_col, border = border_col,
-      outline = FALSE, axes = FALSE,
-      whisklty = 1, staplelty = 1, medlwd = 2.4)
-  invisible(NULL)
-}
-
-# ------------------------------------------------------------------------------
-# 5A. 2-PANEL FIGURE: Side-by-Side (a) Raw ESS and (b) Relative Efficiency ESS/S
-# ------------------------------------------------------------------------------
-pdf_file2 <- "ess_boxplot.pdf"
-pdf(pdf_file2, width = 20, height = 9.5, useDingbats = FALSE)
-
-par(
-  mfrow    = c(1, 2),
-  mar      = c(6.5, 8.5, 2.5, 2.0),
-  oma      = c(0.5, 0.5, 0.5, 0.5),
-  mgp      = c(5.2, 1.5, 0),
-  cex.lab  = 2.6,
-  cex.axis = 2.1,
-  las      = 1
-)
-
-# PANEL (a): Superimposed Raw ESS
-ylim_bp <- c(0, 6e4)
-plot(NA, xlim = xlim_bp, ylim = ylim_bp,
-     xlab = expression("Iterations (" * italic(S) * ")"),
-     ylab = expression(widehat(ESS)),
-     main = "", xaxt = "n", yaxt = "n")
-
-s_ticks3  <- s_ticks_uniform
-s_labels3 <- s_labels_uniform
-axis(1, at = s_ticks3, labels = s_labels3)
-y_ticks3  <- seq(0, 50000, by = 10000)
-y_labels3 <- ifelse(y_ticks3 == 0, "0", paste0(y_ticks3 / 1000, "K"))
-axis(2, at = y_ticks3, labels = y_labels3)
-
-abline(h = y_ticks3, col = "grey92", lty = 1, lwd = 0.8)
-abline(v = s_ticks3, col = "grey92", lty = 1, lwd = 0.8)
-
-for (k in seq_len(n_steps)) {
-  draw_bxp(min_ess_xi_mat[, k], S_vals[k], box_w,
-           adjustcolor(COL_MIN_ESS,  0.40), COL_MIN_ESS)
-  draw_bxp(ess_elpd_mat[, k], S_vals[k], box_w,
-           adjustcolor(COL_ESS_ELPD, 0.40), COL_ESS_ELPD)
-}
-
-legend("topleft", inset = c(0.025, 0.025),
-       legend = c(
-         expression(min[italic(j)] ~ widehat(ESS)(theta[italic(j)])),
-         expression(widehat(ESS)[ELPPD])
-       ),
-       fill   = c(adjustcolor(COL_MIN_ESS, 0.40), adjustcolor(COL_ESS_ELPD, 0.40)),
-       border = c(COL_MIN_ESS, COL_ESS_ELPD),
-       bty    = "o", bg = adjustcolor("white", 0.94), box.col = "grey75",
-       cex    = 1.45, y.intersp = 1.2)
-box(lwd = 1.8)
-
-# PANEL (b): Superimposed Relative Efficiency: ESS / S
-ylim_ratio <- c(0, 0.38)
-plot(NA, xlim = xlim_bp, ylim = ylim_ratio,
-     xlab = expression("Iterations (" * italic(S) * ")"),
-     ylab = expression(widehat(ESS) / italic(S)),
-     main = "", xaxt = "n", yaxt = "n")
-
-axis(1, at = s_ticks3, labels = s_labels3)
-y_ticks_ratio  <- seq(0, 0.35, by = 0.05)
-y_labels_ratio <- sprintf("%.2f", y_ticks_ratio)
-axis(2, at = y_ticks_ratio, labels = y_labels_ratio)
-
-abline(h = y_ticks_ratio, col = "grey92", lty = 1, lwd = 0.8)
-abline(v = s_ticks3,       col = "grey92", lty = 1, lwd = 0.8)
-
-for (k in seq_len(n_steps)) {
-  draw_bxp(ratio_min_xi[, k], S_vals[k], box_w,
-           adjustcolor(COL_MIN_ESS,  0.40), COL_MIN_ESS)
-  draw_bxp(ratio_elpd[, k], S_vals[k], box_w,
-           adjustcolor(COL_ESS_ELPD, 0.40), COL_ESS_ELPD)
-}
-
-legend("topright", inset = c(0.025, 0.025),
-       legend = c(
-         expression(min[italic(j)] ~ widehat(ESS)(theta[italic(j)]) / italic(S)),
-         expression(widehat(ESS)[ELPPD] / italic(S))
-       ),
-       fill   = c(adjustcolor(COL_MIN_ESS, 0.40), adjustcolor(COL_ESS_ELPD, 0.40)),
-       border = c(COL_MIN_ESS, COL_ESS_ELPD),
-       bty    = "o", bg = adjustcolor("white", 0.94), box.col = "grey75",
-       cex    = 1.45, y.intersp = 1.2)
-box(lwd = 1.8)
-
-dev.off()
-cat(sprintf("Saved %s\n", pdf_file2))
-
-# ------------------------------------------------------------------------------
-# 5B. STANDALONE SINGLE-PANEL FIGURES (for individual inclusion in LaTeX)
-# ------------------------------------------------------------------------------
-# Standalone Raw ESS Plot
-pdf_file2_raw <- "ess_raw_boxplot.pdf"
-pdf(pdf_file2_raw, width = 10, height = 8, useDingbats = FALSE)
-par(
-  mar      = c(6.2, 7.8, 1.5, 1.5),
-  oma      = c(0.2, 0.2, 0.2, 0.2),
-  mgp      = c(4.8, 1.4, 0),
-  cex.lab  = 2.2,
-  cex.axis = 1.7,
-  las      = 1
-)
-plot(NA, xlim = xlim_bp, ylim = ylim_bp,
-     xlab = expression("Iterations (" * italic(S) * ")"),
-     ylab = expression(widehat(ESS)),
-     main = "", xaxt = "n", yaxt = "n")
-axis(1, at = s_ticks3, labels = s_labels3)
-axis(2, at = y_ticks3, labels = y_labels3)
-abline(h = y_ticks3, col = "grey92", lty = 1, lwd = 0.8)
-abline(v = s_ticks3, col = "grey92", lty = 1, lwd = 0.8)
-for (k in seq_len(n_steps)) {
-  draw_bxp(min_ess_xi_mat[, k], S_vals[k], box_w,
-           adjustcolor(COL_MIN_ESS,  0.40), COL_MIN_ESS)
-  draw_bxp(ess_elpd_mat[, k], S_vals[k], box_w,
-           adjustcolor(COL_ESS_ELPD, 0.40), COL_ESS_ELPD)
-}
-legend("topleft", inset = c(0.04, 0.04),
-       legend = c(
-         expression(min[italic(j)] ~ widehat(ESS)(theta[italic(j)])),
-         expression(widehat(ESS)[ELPPD])
-       ),
-       fill   = c(adjustcolor(COL_MIN_ESS, 0.40), adjustcolor(COL_ESS_ELPD, 0.40)),
-       border = c(COL_MIN_ESS, COL_ESS_ELPD),
-       bty    = "o", bg = adjustcolor("white", 0.94), box.col = "grey75",
-       cex    = 1.35, y.intersp = 1.2)
-box(lwd = 1.8)
-dev.off()
-cat(sprintf("Saved %s\n", pdf_file2_raw))
-
-# Standalone Relative Efficiency Plot (ESS / S)
-pdf_file2_ratio <- "ess_ratio_boxplot.pdf"
-pdf(pdf_file2_ratio, width = 10, height = 8, useDingbats = FALSE)
-par(
-  mar      = c(6.2, 7.8, 1.5, 1.5),
-  oma      = c(0.2, 0.2, 0.2, 0.2),
-  mgp      = c(4.8, 1.4, 0),
-  cex.lab  = 2.2,
-  cex.axis = 1.7,
-  las      = 1
-)
-plot(NA, xlim = xlim_bp, ylim = ylim_ratio,
-     xlab = expression("Iterations (" * italic(S) * ")"),
-     ylab = expression(widehat(ESS) / italic(S)),
-     main = "", xaxt = "n", yaxt = "n")
-axis(1, at = s_ticks3, labels = s_labels3)
-axis(2, at = y_ticks_ratio, labels = y_labels_ratio)
-abline(h = y_ticks_ratio, col = "grey92", lty = 1, lwd = 0.8)
-abline(v = s_ticks3,       col = "grey92", lty = 1, lwd = 0.8)
-for (k in seq_len(n_steps)) {
-  draw_bxp(ratio_min_xi[, k], S_vals[k], box_w,
-           adjustcolor(COL_MIN_ESS,  0.40), COL_MIN_ESS)
-  draw_bxp(ratio_elpd[, k], S_vals[k], box_w,
-           adjustcolor(COL_ESS_ELPD, 0.40), COL_ESS_ELPD)
-}
-legend("topright", inset = c(0.04, 0.04),
-       legend = c(
-         expression(min[italic(j)] ~ widehat(ESS)(theta[italic(j)]) / italic(S)),
-         expression(widehat(ESS)[ELPPD] / italic(S))
-       ),
-       fill   = c(adjustcolor(COL_MIN_ESS, 0.40), adjustcolor(COL_ESS_ELPD, 0.40)),
-       border = c(COL_MIN_ESS, COL_ESS_ELPD),
-       bty    = "o", bg = adjustcolor("white", 0.94), box.col = "grey75",
-       cex    = 1.35, y.intersp = 1.2)
-box(lwd = 1.8)
-dev.off()
-cat(sprintf("Saved %s\n", pdf_file2_ratio))

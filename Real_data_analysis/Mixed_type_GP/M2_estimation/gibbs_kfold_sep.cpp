@@ -1,32 +1,6 @@
 // [[Rcpp::depends(RcppArmadillo)]]
-// -----------------------------------------------------------------------------
-// Model M2 (separate covariances): Gibbs sampler on the augmented mixture
-//
-//   q_mix(theta, U = k)  ∝  p(theta) p(y | theta) p(y_{D_k} | W_{D_k})^{-1},
-//   theta = (B, sig2_1..sig2_q, phi, W_{-D_k}, W_{D_k}),
-//
-// where the q latent processes are independent GPs sharing phi:
-//   W_j(.) | beta_j, sig2_j, phi ~ GP(X(.)' beta_j, sig2_j K_phi),
-//   beta_j | sig2_j ~ N(M_j, sig2_j V),  sig2_j ~ IG(a, b),  phi ~ U(0, b_phi).
-//
-// The two full conditionals of eljpd_derivation.pdf are
-//
-//   (Eq. 7)  P(U = k | theta)  ∝  p(y_{D_k} | W_{D_k})^{-1},          k = 1..K
-//   (Eq. 8)  q_mix(theta | U = k)  ∝  p(theta | y_{-D_k})
-//              ∝ p(y_{-D_k} | W_{-D_k}) p(W | B, sig2, phi) p(B | sig2) p(sig2) p(phi)
-//              = p(W_{D_k} | W_{-D_k}, B, sig2, phi) p(W_{-D_k}, B, sig2, phi | y_{-D_k}),
-//            i.e. the training likelihood enters exactly once.
-//
-// Given U = k, theta is refreshed by the blocked Gibbs cycle (Algorithm 1, steps 3-6)
-//   phi    | W, B, sig2                  Metropolis-Hastings (Vecchia GP density)
-//   sig2_j | W_j, phi                    inverse-gamma, beta_j integrated out
-//   beta_j | sig2_j, W_j, phi            normal
-//   W_T,j  | beta_j, sig2_j, phi, y_T,j     marginal-prior elliptical slice update
-//   W_H,j  | W_T,j, beta_j, sig2_j, phi     Gaussian conditional draw
-//
-// Every update is a pure function returning the new value; nothing is modified
-// in place or stored globally.
-// -----------------------------------------------------------------------------
+// Model M2 (separate covariances): Gibbs sampler on the mixture q_mix(theta, U) for K-fold CV
+// U | theta (fold indicator), then phi, sig2, B, W | U = k invariant for p(theta | y_{-D_k})
 #include <RcppArmadillo.h>
 #include <cmath>
 #include <vector>
@@ -46,8 +20,7 @@ struct Vecchia {
   std::vector<int> self;
 };
 
-// Vecchia regression coefficients and conditional variances for a given phi:
-//   W_ij | W_{N(i),j} ~ N( sum_a B[i][a] W_{N(i)_a, j},  r[i] * sig2_j )
+// Vecchia coefficients B and conditional variances r for a given phi
 struct Coeff {
   std::vector<std::vector<double> > B;
   std::vector<double> r;
@@ -175,8 +148,7 @@ static double vecchia_ll_sep(const arma::mat& W, const arma::mat& M, const Vecch
   return ll;
 }
 
-// Vecchia-whitened products U W and U X, where row i of U A is
-//   (A_i - sum_a B[i][a] A_{N(i)_a}) / sqrt(r_i)
+// Vecchia-whitened products U W and U X
 struct VecchiaProducts {
   arma::mat UW;
   arma::mat UX;
@@ -275,7 +247,7 @@ static std::vector<char> train_mask(const std::vector<int>& fold0, int k) {
 
 // ------------------------------------------------------------ Gibbs updates
 
-// Eq. 7:  P(U = k | theta) ∝ exp(-log p(y_{D_k} | W_{D_k}))   (Gumbel-max draw)
+// P(U = k | theta) ∝ exp(-log p(y_{D_k} | W_{D_k}))   (Gumbel-max draw)
 static int update_U(const arma::vec& fold_ll) {
   const int K = fold_ll.n_elem;
   int k = 0;
@@ -287,7 +259,6 @@ static int update_U(const arma::vec& fold_ll) {
   return k;
 }
 
-// phi | W, B, Sigma  (uniform prior on (0, b_phi), truncated-normal RW proposal)
 
 // phi | W, B, sig2  (uniform prior on (0, b_phi), truncated-normal RW proposal)
 static PhiState update_phi(const PhiState& cur, const arma::mat& M, const arma::mat& W,
@@ -325,8 +296,7 @@ static RegStats reg_stats(const arma::mat& W, const arma::mat& X,
 }
 
 
-// sig2_j | W_j, phi ~ IG(a + N/2, b + c_j/2)  (beta_j integrated out);
-// Binomial margins keep their fixed scale
+// sig2_j | W_j, phi ~ IG(a + N/2, b + c_j/2), beta_j integrated out; Binomial scale fixed
 static arma::vec update_sig2(const RegStats& rs, const arma::mat& Mprior,
                              const arma::mat& cholP, double a_prior, double b_prior,
                              const std::vector<int>& fam, const std::vector<double>& fixed_sd) {
@@ -352,10 +322,7 @@ static arma::mat update_beta_sep(const RegStats& rs, const arma::vec& sig2) {
   return beta;
 }
 
-// Two consecutive latent steps at fixed B, sig2, phi, U:
-// 1. ESS on training locations under the MARGINAL global Vecchia prior.
-// 2. Gaussian held-out conditional draw, independently for each response.
-// Never rebuild a training-only graph or insert another update between steps.
+// Sparse Vecchia whitening matrix U, with precision Q = U'U
 static arma::sp_mat vecchia_whitener(const Vecchia& V, const Coeff& C) {
   arma::uword nnz = V.N;
   for (const auto& b : C.B) nnz += b.size();
@@ -377,6 +344,7 @@ static arma::sp_mat vecchia_whitener(const Vecchia& V, const Coeff& C) {
   return arma::sp_mat(positions, values, V.N, V.N);
 }
 
+// Held-out latent rows W_{D_k} | W_{-D_k}, B, sig2, phi
 static arma::mat draw_heldout_sep(const arma::mat& W, const arma::mat& M,
                                   const arma::vec& sig2, const Vecchia& V,
                                   const Coeff& C, const arma::uvec& held) {
@@ -411,6 +379,7 @@ static arma::mat draw_heldout_sep(const arma::mat& W, const arma::mat& M,
   return out;
 }
 
+// W | B, sig2, phi, y_{-D_k}: elliptical slice on training sites, then held-out draw
 static arma::mat update_W_sep(const arma::mat& W_cur, const arma::mat& M,
                               const arma::vec& sig2, const Vecchia& V,
                               const Coeff& C, const arma::mat& Y,
@@ -422,8 +391,7 @@ static arma::mat update_W_sep(const arma::mat& W_cur, const arma::mat& M,
   const arma::uvec training(tv), held(hv);
   arma::mat W = W_cur;
   if (!training.is_empty()) {
-    // Restrict a full prior draw to T: its covariance is the marginal K_TT,
-    // not the conditional covariance given the old held-out field.
+    // Prior draw restricted to training sites gives the slice directions
     const arma::mat directions = vecchia_prior_draw(rnorm_mat(N, q), V, C);
     for (int j = 0; j < q; ++j) {
       arma::vec mu = M.col(j);
@@ -446,8 +414,7 @@ static arma::mat update_W_sep(const arma::mat& W_cur, const arma::mat& M,
       double angle = unif_rand() * 2.0 * M_PI;
       double lower = angle - 2.0 * M_PI, upper = angle;
       arma::vec candidate = cur;
-      // This is a slice-bracket search, not 1000 posterior iterations.
-      // Continue until acceptance; allow the user to interrupt long searches.
+      // Slice-bracket search; continues until acceptance
       unsigned int attempts = 0;
       while (true) {
         if ((attempts++ & 63u) == 0u) Rcpp::checkUserInterrupt();
@@ -468,8 +435,7 @@ static arma::mat update_W_sep(const arma::mat& W_cur, const arma::mat& M,
       }
     }
   }
-  // Refresh held-out response columns independently from their Gaussian
-  // conditional, immediately after the marginalized training update.
+  // Refresh held-out latent rows from their Gaussian conditional
   return draw_heldout_sep(W, M, sig2, V, C, held);
 }
 
@@ -527,7 +493,7 @@ List gibbs_sep(
   arma::mat beta = as<arma::mat>(beta_init);
   arma::vec sig2 = as<arma::vec>(sig2_init);
   PhiState  phi{phi_init, vecchia_coeff_fill(locs, V, phi_init, nu), false};   // phi.value, phi.C
-  arma::vec fold_ll = fold_lik(Ya, W, fold0, K, fam, par);                    // Step 1
+  arma::vec fold_ll = fold_lik(Ya, W, fold0, K, fam, par);
   
   std::vector<double> fixed_sd(q);
   for (int j = 0; j < q; ++j) fixed_sd[j] = std::sqrt(sig2(j));
@@ -544,11 +510,11 @@ List gibbs_sep(
   
   for (int iter = 0; iter < niters; ++iter) {
     
-    // Step 2 (Eq. 7): U | theta
+    // U | theta
     const int k = update_U(fold_ll);
     const std::vector<char> train = train_mask(fold0, k);
     
-    // Steps 3-6 (Eq. 8): theta | U = k, invariant for p(theta | y_{-D_k})
+    // theta | U = k, invariant for p(theta | y_{-D_k})
     phi      = update_phi(phi, Xa * beta, W, sig2, locs, V, nu, b_phi, tuning_phi);
     acc_phi += phi.accepted;
     
@@ -558,7 +524,7 @@ List gibbs_sep(
     
     W        = update_W_sep(W, Xa * beta, sig2, V, phi.C, Ya, fam, par, train);
     
-    // Step 7: log p(y_{D_l} | W_{D_l}), l = 1..K, at the new theta
+    // Fold log-likelihoods log p(y_{D_l} | W_{D_l}) at the new theta
     fold_ll  = fold_lik(Ya, W, fold0, K, fam, par);
     
     // record

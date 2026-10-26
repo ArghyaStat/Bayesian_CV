@@ -1,29 +1,6 @@
 // [[Rcpp::depends(RcppArmadillo)]]
-// -----------------------------------------------------------------------------
-// Univariate Vecchia GP regression with nugget: Gibbs sampler on the K-fold mixture
-//
-//   y = X beta + w + eps,   w ~ GP(0, sigma2 K_{phi,nu}),   eps ~ N(0, tau2 I),
-//   s2 = sigma2 + tau2,     r = sigma2 / s2,
-//   Cov(y | theta) = s2 C_{phi,r},   C_{phi,r} = r K_{phi,nu} + (1 - r) I,
-//   beta | s2 ~ N(0, s2 V),   s2 ~ IG(a, b),   phi ~ U(0, b_phi),   r ~ U(0, 1).
-//
-//   q_mix(theta, U = k)  ∝  p(theta) p(y | theta) / p(y_{D_k} | y_{-D_k}, theta)
-//                        =  p(theta) p(y_{-D_k} | theta),   theta = (beta, s2, phi, r).
-//
-// One sweep:
-//   U | theta                     P(U = k | theta) ∝ 1 / p(y_{D_k} | y_{-D_k}, theta)
-//   z | theta, U = k              z ~ p(y_{D_k} | y_{-D_k}, theta)        (augmentation)
-//   phi | r, y~, then r | phi, y~ random-walk Metropolis-Hastings on p(phi, r | y~),
-//                                 (beta, s2) integrated out, in the unconstrained
-//                                 (u, v) = (logit(phi / b_phi), logit(r))
-//   (s2, beta) | phi, r, y~       s2 ~ IG (beta integrated out), beta | s2 ~ N
-// where y~ = (y_{-D_k}, z). Given U = k the last three steps form a blocked Gibbs
-// cycle on p(theta, z | y_{-D_k}) and hence leave p(theta | y_{-D_k}) invariant.
-//
-// All densities are taken under the Vecchia joint N(X beta, s2 (U'U)^{-1}) of the
-// response, where row i of U e is (e_i - sum_j B_ij e_{N(i)_j}) / sqrt(d_i) and
-// (B_i, d_i) are the kriging weights and variance of C_{phi,r}.
-// -----------------------------------------------------------------------------
+// Univariate Vecchia GP regression with nugget: Gibbs sampler on the K-fold mixture q_mix(theta, U)
+// Sweep: U | theta, z | theta, U (held-out augmentation), (phi, r) by MH, then (s2, beta) | phi, r
 #include <RcppArmadillo.h>
 #include <chrono>
 #include <cmath>
@@ -35,9 +12,7 @@ using namespace Rcpp;
 
 // ------------------------------------------------------------------ structures
 
-// Vecchia conditioning sets (0-based, location i excluded) with indices into a
-// table of unique pairwise distances, so that each (phi, r) requires one Matern
-// evaluation per distinct distance only.
+// Vecchia conditioning sets (0-based) indexing a table of unique pairwise distances
 struct Vecchia {
   int N;
   std::vector<std::vector<int> > nb;
@@ -55,8 +30,7 @@ struct CovState {
   bool valid;
 };
 
-// Held-out block D_k: selection matrix P_k (N x n_k) and Cholesky factor of
-// Q_kk = (U P_k)'(U P_k), the unscaled precision of y_{D_k} | y_{-D_k}
+// Held-out block D_k: selection matrix P_k and Cholesky factor of Q_kk
 struct Fold {
   arma::uvec idx;
   arma::sp_mat P;
@@ -68,10 +42,7 @@ struct FoldFactor {
   double logdet;
 };
 
-// Conjugate quantities given (phi, r, y~):
-//   P = (UX)'(UX) + V^{-1} = R'R,  c = R^{-T} (UX)'(Uy),  ssr = ||Uy||^2 - ||c||^2,
-//   log_marg = log p(y~ | phi, r) + const
-//            = -sum_i log d_i / 2 - log|R| - (a + N/2) log(b + ssr/2)
+// Conjugate quantities given (phi, r, y~), incl. the log marginal log p(y~ | phi, r)
 struct Collapsed {
   arma::mat R;
   arma::vec c;
@@ -90,15 +61,13 @@ static arma::vec solve_R(const arma::mat& R, const arma::vec& b) {
 
 // ------------------------------------------------------------- Vecchia helpers
 
-// Matern correlation, fields::Matern(dist, range = phi, smoothness = nu):
-//   rho(h) = 2^{1-nu} / Gamma(nu) (h / phi)^nu K_nu(h / phi)
+// Matern correlation, as fields::Matern(dist, range = phi, smoothness = nu)
 // [[Rcpp::export]]
 double matern(double dist, double phi, double nu) {
   if (dist == 0.0) return 1.0;
   const double x = dist / phi;
 
-  // Half-integer nu = p + 1/2:
-  //   rho = exp(-x) p!/(2p)! sum_{i=0}^p (p+i)! / (i! (p-i)!) (2x)^{p-i}
+  // Closed form for half-integer nu = p + 1/2
   const double p = nu - 0.5;
   if (p >= 0.0 && p == std::floor(p)) {
     const int ip = (int)p;
@@ -228,9 +197,7 @@ static std::vector<FoldFactor> fold_factors(const CovState& cs, const std::vecto
   return out;
 }
 
-// y_{D_k} | y_{-D_k} ~ N(X_k beta + m_k, s2 Q_kk^{-1}),
-//   m_k = -Q_kk^{-1} Q_{k,-k} e_{-k},   Q_kk^{-1} Q_{k,-k} e_{-k} = R^{-1} a_k,
-//   a_k = R^{-T} (U P_k)'(U e - U P_k e_k)
+// Conditional y_{D_k} | y_{-D_k} ~ N(X_k beta + m_k, s2 Q_kk^{-1})
 static arma::vec fold_shift(const arma::vec& Ue, const arma::vec& eH, const FoldFactor& f) {
   const arma::vec rhs = f.UH.t() * (Ue - f.UH * eH);
   return solve_Rt(f.R, rhs);
@@ -304,9 +271,7 @@ struct Target {
   double a_sigma, b_sigma, nu, b_phi;
 };
 
-// Point (u, v) with its Vecchia factor, conjugate quantities and log target
-//   lp = log p(phi, r | y~) + log|d(phi, r) / d(u, v)| + const,
-//   log d expit(x) / dx = -softplus(-x) - softplus(x)
+// Point (u, v) with its Vecchia factor, conjugate quantities and log target incl. Jacobian
 struct Point {
   double u, v;
   CovState cs;
@@ -322,8 +287,7 @@ static Point eval_point(double u, double v, const Target& tg) {
   return pt;
 }
 
-// Gaussian random walk on u (j = 0) or v (j = 1) with variance tuning; the proposal
-// is symmetric on the logit scale, so the acceptance ratio is exp(lp* - lp)
+// Symmetric Gaussian random walk on u (j = 0) or v (j = 1), logit scale
 static bool update_logit(Point& cur, int j, double tuning, const Target& tg) {
   const double step = std::sqrt(tuning) * norm_rand();
   Point can = j == 0 ? eval_point(cur.u + step, cur.v, tg) : eval_point(cur.u, cur.v + step, tg);
@@ -334,8 +298,7 @@ static bool update_logit(Point& cur, int j, double tuning, const Target& tg) {
   return false;
 }
 
-// (s2, beta) | phi, r, y~:
-//   s2 ~ IG(a + N/2, b + ssr/2),   beta | s2 ~ N(R^{-1} c, s2 (R'R)^{-1})
+// (s2, beta) | phi, r, y~: s2 ~ IG(a + N/2, b + ssr/2), beta | s2 ~ N(R^{-1} c, s2 (R'R)^{-1})
 static void update_beta_s2(arma::vec& beta, double& s2, const Collapsed& cl, int N,
                            double a_sigma, double b_sigma) {
   s2 = 1.0 / R::rgamma(a_sigma + 0.5 * N, 1.0 / (b_sigma + 0.5 * cl.ssr));
