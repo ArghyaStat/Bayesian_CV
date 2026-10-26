@@ -1,8 +1,7 @@
 # Monte Carlo uncertainty quantification for Bayesian cross-validation
 
 Code and saved outputs for the simulation studies and real-data analyses in the paper
-*"Monte Carlo uncertainty quantification for Bayesian cross-validation"* (submitted to the
-*Journal of Computational and Graphical Statistics*).
+*"Monte Carlo uncertainty quantification for Bayesian cross-validation"*.
 
 In every study, two competing models (M1 and M2) are compared by cross-validated predictive
 accuracy. Each model is fitted with a single MCMC chain that targets the mixture proposal
