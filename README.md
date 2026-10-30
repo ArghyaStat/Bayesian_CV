@@ -57,7 +57,7 @@ form and is used as a reference.
 
 ### Section 6.2: Smoothness misspecification in GP regression
 
-Vecchia-approximated GP regression with a nugget on a 20 x 20 grid, 10-fold CV. M1 uses the true
+Vecchia-approximated GP regression with a nugget on a 10 x 10 grid, 10-fold CV. M1 uses the true
 Matérn smoothness `nu = 0.5`; M2 uses `nu = 1`.
 
 | File | Purpose |
