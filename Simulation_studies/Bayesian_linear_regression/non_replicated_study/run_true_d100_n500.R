@@ -25,7 +25,7 @@ sigma2 <- 1
 tau2   <- 100
 
 S_star <- 5e3
-S_max  <- 1e5
+S_max  <- 2.5e5
 S_step <- 5e3
 S_vals <- seq(S_star, S_max, by = S_step)
 
@@ -33,8 +33,8 @@ K     <- n
 kappa <- 1:n
 
 # HMC parameters
-eps_mix <- 0.48
-L_steps <- 20
+eps_mix <- 0.65
+L_steps <- 10
 
 # Vectorised log-likelihood matrix: S x n
 compute_log_lik_mat <- function(samples, X, y, sigma2) {
