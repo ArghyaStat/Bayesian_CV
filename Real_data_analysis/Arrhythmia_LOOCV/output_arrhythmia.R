@@ -1,5 +1,5 @@
 ## Link misspecification in binary regression (Section 7.1): M1 (logistic) vs M2 (cloglog), n = 452, d = 258
-## Output: elpd_mcse_arrhythmia.pdf (ELPPD tracking with 95% MC intervals and S_sep)
+## Output: elpd_mcse_arrhythmia.pdf (ELPPD tracking with 95% MC intervals)
 
 rm(list = ls())
 invisible(gc())
@@ -44,7 +44,7 @@ cat(sprintf("Final ELPPD:\n  M1 (Logit)  : %.3f (SE = %.4f, ESS = %.1f, minESS_x
             tail(h2$ess_elppd, 1), tail(h2$minESS_xi, 1),
             tail(h2$elppd_hat, 1) - tail(h1$elppd_hat, 1)))
 
-## Separation point S_sep
+## 95% Monte Carlo intervals
 z_crit <- qnorm(0.975)
 
 m1_lo <- h1$elppd_hat - z_crit * h1$asymp_se
@@ -52,33 +52,9 @@ m1_hi <- h1$elppd_hat + z_crit * h1$asymp_se
 m2_lo <- h2$elppd_hat - z_crit * h2$asymp_se
 m2_hi <- h2$elppd_hat + z_crit * h2$asymp_se
 
-compute_S_sep <- function(S, lo1, hi1, lo2, hi2) {
-  is_sep <- (lo1 > hi2) | (lo2 > hi1)
-  if (length(is_sep) > 0 && is_sep[length(is_sep)]) {
-    fi <- which(!is_sep)
-    k_sep <- if (length(fi) == 0) 1L else max(fi) + 1L
-    return(S[k_sep])
-  }
-  NA_real_
-}
-
-sep_S <- compute_S_sep(S_vals, m1_lo, m1_hi, m2_lo, m2_hi)
-if (!is.na(sep_S)) {
-  cat(sprintf("Data-adaptive separation attained at S_sep = %s iterations!\n",
-              format(sep_S, big.mark = ",", scientific = FALSE)))
-  k_sep <- which(S_vals == sep_S)
-  cat(sprintf("  At S = %s: M1 = %.2f [%.2f, %.2f] vs M2 = %.2f [%.2f, %.2f]\n\n",
-              format(sep_S, big.mark = ",", scientific = FALSE),
-              h1$elppd_hat[k_sep], m1_lo[k_sep], m1_hi[k_sep],
-              h2$elppd_hat[k_sep], m2_lo[k_sep], m2_hi[k_sep]))
-} else {
-  cat("No complete non-overlapping separation attained through S_max.\n\n")
-}
-
 ## Plot styling and axes
 COL_M1  <- "#08519C"
 COL_M2  <- "#D73027"
-COL_SEP <- "#006837"
 
 xlim_common <- range(S_vals)
 s_ticks     <- pretty(S_vals, n = 5)
@@ -118,8 +94,6 @@ render_elppd_panel <- function() {
   draw_frame(ylim_elppd, y_ticks_elppd, y_ticks_elppd,
              expression(widehat(ELPPD)(italic(S))))
 
-  if (!is.na(sep_S)) abline(v = sep_S, col = COL_SEP, lty = 4, lwd = 3.2)
-
   arrows(h1$S, m1_lo, h1$S, pmin(m1_hi, ylim_elppd[2]), code = 3, angle = 90, length = 0.06,
          col = adjustcolor(COL_M1, 0.50), lwd = 2.4)
   arrows(h2$S, m2_lo, h2$S, pmin(m2_hi, ylim_elppd[2]), code = 3, angle = 90, length = 0.06,
@@ -130,24 +104,17 @@ render_elppd_panel <- function() {
   lines(h2$S,  h2$elppd_hat, col = COL_M2, lwd = 3.2)
   points(h2$S, h2$elppd_hat, col = COL_M2, pch = 1, cex = 1.6, lwd = 2.0)
 
-  sep_txt <- if (!is.na(sep_S)) {
-    bquote("Separation (" * italic(S)[sep] == .(format(sep_S, big.mark = ",", scientific = FALSE)) * ")")
-  } else {
-    expression("No separation")
-  }
-
   legend("topright", inset = c(0.025, 0.025),
          legend = c(
            as.expression(bquote(italic(M)[1] ~ "(Logistic link)")),
-           as.expression(bquote(italic(M)[2] ~ "(Cloglog link)")),
-           sep_txt
+           as.expression(bquote(italic(M)[2] ~ "(Cloglog link)"))
          ),
-         col = c(COL_M1, COL_M2, COL_SEP),
-         pch = c(19, 1, NA),
-         lty = c(1, 1, 4),
-         lwd = c(3.0, 3.0, 3.2),
-         pt.cex = c(1.6, 1.6, NA),
-         pt.lwd = c(NA, 2.0, NA),
+         col = c(COL_M1, COL_M2),
+         pch = c(19, 1),
+         lty = c(1, 1),
+         lwd = c(3.0, 3.0),
+         pt.cex = c(1.6, 1.6),
+         pt.lwd = c(NA, 2.0),
          bty = "o", bg = adjustcolor("white", 0.94), box.col = "grey75",
          cex = 1.35, y.intersp = 1.15)
   box(lwd = 1.8)

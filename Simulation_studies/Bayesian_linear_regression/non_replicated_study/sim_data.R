@@ -1,4 +1,4 @@
-# Configuration: d = 250, n = 500
+# Configuration: d = 100, n = 500
 
 # Exact Bayesian LOO-ELPD
 loo_elpd <- function(X, y, sigma2, tau2) {
@@ -108,8 +108,8 @@ if (sys.nframe() == 0) {
   }
 
   n <- 500
-  d <- 250
-  eta <- 0.1
+  d <- 100
+  eta <- 0.9
   sigma2 <- 1
   tau2 <- 100
   s <- min(d, max(1, floor(n / log(d))))

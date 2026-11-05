@@ -1,5 +1,5 @@
 # Non-replicated study: True model (M1)
-# Configuration: d = 250, n = 500
+# Configuration: d = 100, n = 500
 # Sampler: Mixture IS via HMC
 
 rm(list = ls())
@@ -18,9 +18,9 @@ source("sampler.R")
 source("sim_data.R")
 
 # Simulation parameters
-d      <- 250
+d      <- 100
 n      <- 500
-eta    <- 0.1
+eta    <- 0.9
 sigma2 <- 1
 tau2   <- 100
 
@@ -102,7 +102,7 @@ rm(fit_mix)
 gc()
 
 history <- list(
-  S = numeric(), ess = numeric(), elppd_hat = numeric(),
+  S = numeric(), ess_elppd = numeric(), elppd_hat = numeric(),
   bias = numeric(), mse = numeric(), asymp_se = numeric()
 )
 
@@ -113,7 +113,7 @@ for (S_curr in S_vals) {
 
   ess_val           <- if (!is.null(out$ess)) out$ess else out$ess_elpd
   history$S         <- c(history$S, S_curr)
-  history$ess       <- c(history$ess, ess_val)
+  history$ess_elppd <- c(history$ess_elppd, ess_val)
   history$elppd_hat <- c(history$elppd_hat, out$elppd)
   history$bias      <- c(history$bias, out$bias)
   history$mse       <- c(history$mse, out$mse)
@@ -128,13 +128,12 @@ summary <- list(
   S_max     = S_max,
   ELPPD_hat = history$elppd_hat[last_idx],
   asymp_se  = history$asymp_se[last_idx],
-  ESS       = history$ess[last_idx],
+  ESS       = history$ess_elppd[last_idx],
   bias      = history$bias[last_idx],
   mse       = history$mse[last_idx]
 )
 
-results <- list(summary = summary, acc_mix = acc_mix, history = history)
-
-res_file <- sprintf("d%d_n%d_true_results.RData", d, n)
-save(results, elpd_M1, elpd_M2, elpd_diff_val, d, n, file = res_file)
+res_file <- "M1_outputs.RData"
+save(history, summary, acc_mix, elpd_M1, elpd_M2, elpd_diff_val, d, n, eta,
+     file = res_file)
 cat(sprintf("Saved results to %s\n", res_file))

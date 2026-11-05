@@ -1,5 +1,5 @@
 ## Smoothness misspecification in GP regression (Section 6.2): M1 (nu = 0.5, true) vs M2 (nu = 1), 10-fold ELJPD
-## elpd_mcse_smoothness.pdf: (a) single-chain ELJPD tracking with 95% MC intervals and S_sep;
+## elpd_mcse_smoothness.pdf: (a) single-chain ELJPD tracking with 95% MC intervals;
 ##                           (b) replicated termination points (S_term, ELJPD_hat) for eps = 0.05, 0.025
 
 rm(list = ls())
@@ -46,22 +46,9 @@ get_term <- function(h, target) {
              asymp_se = h$asymp_se[k], reached = reached)
 }
 
-# Earliest checkpoint after which the 95% intervals of M1 and M2 stay disjoint
-compute_S_sep <- function(h1, h2) {
-  lo1 <- h1$eljpd_hat - z_crit * h1$asymp_se
-  hi1 <- h1$eljpd_hat + z_crit * h1$asymp_se
-  lo2 <- h2$eljpd_hat - z_crit * h2$asymp_se
-  hi2 <- h2$eljpd_hat + z_crit * h2$asymp_se
-  is_sep <- lo1 > hi2 | lo2 > hi1
-  if (!is_sep[length(is_sep)]) return(NA_real_)
-  fi <- which(!is_sep)
-  h1$S[if (length(fi) == 0) 1L else max(fi) + 1L]
-}
-
 term_nr <- lapply(nr, function(h) lapply(ess_target, get_term, h = h))
 term_rp <- lapply(rp, function(res) lapply(ess_target, function(tg)
   do.call(rbind, lapply(res, function(x) get_term(x$history, tg)))))
-S_sep <- compute_S_sep(nr$M1, nr$M2)
 
 # Summary of replicated termination points
 summ <- do.call(rbind, lapply(names(term_rp), function(mod) {
@@ -85,13 +72,11 @@ rank_ok <- sapply(seq_along(eps_vals), function(j)
 if (!is.null(ref))
   cat(sprintf("%s ELJPD  M1: %.4f  M2: %.4f  difference: %.4f\n", ref_label,
               ref["M1"], ref["M2"], ref["M1"] - ref["M2"]))
-cat(sprintf("Non-replicated separation point S_sep: %s\n", format(S_sep, big.mark = ",", scientific = FALSE)))
 print(summ, digits = 4, row.names = FALSE)
 cat(sprintf("P(ELJPD_hat M1 > M2), eps = %s: %.3f\n", eps_vals, rank_ok), sep = "")
 
 COL_M1_A <- "#08519C"   # deep royal blue
 COL_M2_A <- "#D73027"   # deep crimson red
-COL_SEP  <- "#006837"   # forest green
 COL_05   <- c(M1 = "#D73027", M2 = "#D4AC0D")   # crimson / golden-yellow
 COL_025  <- c(M1 = "#08519C", M2 = "#6BAED6")   # royal blue / sky blue
 
@@ -112,7 +97,7 @@ pdf("elpd_mcse_smoothness.pdf", width = 20, height = 9.5, useDingbats = FALSE)
 par(mfrow = c(1, 2), mar = c(6.5, 11, 2.5, 2.0), oma = rep(0.5, 4),
     mgp = c(5.2, 1.5, 0), cex.lab = 2.6, cex.axis = 2.1, las = 1)
 
-# Panel (a): single-chain ELJPD tracking and separation point
+# Panel (a): single-chain ELJPD tracking
 xlim1 <- c(0, max(nr$M1$S))
 ylim1 <- range(unlist(ci), ref)
 ylim1 <- ylim1 + c(-0.05, 0.25) * diff(ylim1)
@@ -130,7 +115,6 @@ if (!is.null(ref)) {
   abline(h = ref["M1"], col = COL_M1_A, lty = 2, lwd = 3.2)
   abline(h = ref["M2"], col = COL_M2_A, lty = 2, lwd = 3.2)
 }
-if (!is.na(S_sep)) abline(v = S_sep, col = COL_SEP, lty = 4, lwd = 3.5)
 
 arrows(nr$M1$S, ci$M1[, "lo"], nr$M1$S, ci$M1[, "hi"], code = 3, angle = 90,
        length = 0.08, col = adjustcolor(COL_M1_A, 0.50), lwd = 2.8)
@@ -140,10 +124,6 @@ lines(nr$M1$S, nr$M1$eljpd_hat, col = COL_M1_A, lwd = 3.5)
 points(nr$M1$S, nr$M1$eljpd_hat, col = COL_M1_A, pch = 19, cex = 1.8)
 lines(nr$M2$S, nr$M2$eljpd_hat, col = COL_M2_A, lwd = 3.5)
 points(nr$M2$S, nr$M2$eljpd_hat, col = COL_M2_A, pch = 1, cex = 1.8, lwd = 2.2)
-
-sep_txt <- if (!is.na(S_sep)) {
-  bquote("Separation (" * italic(S)[sep] == .(format(S_sep, big.mark = ",", scientific = FALSE)) * ")")
-} else expression("No separation")
 
 leg_a <- list(legend = c(expression(italic(M)[1] ~ (nu == 0.5) ~ "(True)"),
                          expression(italic(M)[2] ~ (nu == 1) ~ "(Misspecified)")),
@@ -157,10 +137,6 @@ if (!is.null(ref)) {
   leg_a$lty <- c(leg_a$lty, 2, 2); leg_a$lwd <- c(leg_a$lwd, 3.2, 3.2)
   leg_a$pt.cex <- c(leg_a$pt.cex, NA, NA); leg_a$pt.lwd <- c(leg_a$pt.lwd, NA, NA)
 }
-leg_a$legend <- c(leg_a$legend, sep_txt)
-leg_a$col <- c(leg_a$col, COL_SEP); leg_a$pch <- c(leg_a$pch, NA)
-leg_a$lty <- c(leg_a$lty, 4); leg_a$lwd <- c(leg_a$lwd, 3.5)
-leg_a$pt.cex <- c(leg_a$pt.cex, NA); leg_a$pt.lwd <- c(leg_a$pt.lwd, NA)
 do.call(legend, c(list("topright", inset = c(0.025, 0.025), bty = "o",
                        bg = adjustcolor("white", 0.94), box.col = "grey75",
                        cex = 1.55, y.intersp = 1.15), leg_a))

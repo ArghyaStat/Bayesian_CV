@@ -1,6 +1,6 @@
 # Replicated study: Misspecified model (M2)
-# Configuration: d = 250, n = 500, reps = 100
-# Sampler: Mixture IS via HMC; stopping criteria nom_width = 0.05 and 0.03
+# Configuration: d = 100, n = 500, reps = 100
+# Sampler: Mixture IS via HMC; termination (nom_width) is applied in output_analysis.R
 
 rm(list = ls())
 gc()
@@ -20,31 +20,24 @@ source("sampler.R")
 source("sim_data.R")
 
 # Simulation parameters
-d      <- 250
+d      <- 100
 n      <- 500
-eta    <- 0.1
+eta    <- 0.9
 sigma2 <- 1
 tau2   <- 100
 reps   <- 100
 
-S_star <- 2e4
-S_max  <- 2e5
+S_star <- 5e3
+S_max  <- 2.5e5
 S_step <- 5e3
 S_vals <- seq(S_star, S_max, by = S_step)
-
-# Stopping criteria
-nom_width_05  <- 0.05
-nom_width_03  <- 0.03
-z_crit        <- qnorm(0.975)
-ess_target_05 <- 4 * z_crit^2 / (nom_width_05^2)
-ess_target_03 <- 4 * z_crit^2 / (nom_width_03^2)
 
 K     <- n
 kappa <- 1:n
 
 # HMC parameters
-eps_mix <- 0.48
-L_steps <- 20
+eps_mix <- 0.65
+L_steps <- 10
 
 # Vectorised log-likelihood matrix: S x n
 compute_log_lik_mat <- function(samples, X, y, sigma2) {
@@ -126,12 +119,9 @@ results_reps <- foreach(r = 1:reps, .packages = c("MASS", "mcmcse")) %dopar% {
   gc()
 
   history <- list(
-    S = numeric(), ess = numeric(), elppd_hat = numeric(),
+    S = numeric(), ess_elppd = numeric(), elppd_hat = numeric(),
     bias = numeric(), mse = numeric(), asymp_se = numeric()
   )
-
-  sterm_05 <- NA_real_
-  sterm_03 <- NA_real_
 
   for (S_curr in S_vals) {
     tup <- tuple_function(log_lik_mix, kappa = kappa, S_curr = S_curr)
@@ -140,50 +130,32 @@ results_reps <- foreach(r = 1:reps, .packages = c("MASS", "mcmcse")) %dopar% {
 
     ess_val           <- if (!is.null(out$ess)) out$ess else out$ess_elpd
     history$S         <- c(history$S, S_curr)
-    history$ess       <- c(history$ess, ess_val)
+    history$ess_elppd <- c(history$ess_elppd, ess_val)
     history$elppd_hat <- c(history$elppd_hat, out$elppd)
     history$bias      <- c(history$bias, out$bias)
     history$mse       <- c(history$mse, out$mse)
     history$asymp_se  <- c(history$asymp_se, out$asymp_se)
-
-    if (is.na(sterm_05) && !is.na(ess_val) && ess_val >= ess_target_05) sterm_05 <- S_curr
-    if (is.na(sterm_03) && !is.na(ess_val) && ess_val >= ess_target_03) sterm_03 <- S_curr
   }
-
-  if (is.na(sterm_05)) sterm_05 <- S_max
-  if (is.na(sterm_03)) sterm_03 <- S_max
 
   rm(log_lik_mix)
   gc()
 
-  idx_05 <- which(S_vals == sterm_05)
-  idx_03 <- which(S_vals == sterm_03)
-
-  summary_05 <- list(
-    S_term     = sterm_05,
-    ELPPD_hat  = history$elppd_hat[idx_05],
-    asymp_se   = history$asymp_se[idx_05],
-    ESS_term   = history$ess[idx_05],
-    bias       = history$bias[idx_05],
-    mse        = history$mse[idx_05]
+  last_idx <- length(history$S)
+  summary <- list(
+    S_max     = S_max,
+    ELPPD_hat = history$elppd_hat[last_idx],
+    asymp_se  = history$asymp_se[last_idx],
+    ESS       = history$ess_elppd[last_idx],
+    bias      = history$bias[last_idx],
+    mse       = history$mse[last_idx]
   )
 
-  summary_03 <- list(
-    S_term     = sterm_03,
-    ELPPD_hat  = history$elppd_hat[idx_03],
-    asymp_se   = history$asymp_se[idx_03],
-    ESS_term   = history$ess[idx_03],
-    bias       = history$bias[idx_03],
-    mse        = history$mse[idx_03]
-  )
-
-  list(summary_05 = summary_05, summary_03 = summary_03,
-       acc_mix = acc_mix, history = history)
+  list(summary = summary, acc_mix = acc_mix, history = history)
 }
 
 if (!is.null(cl)) stopCluster(cl)
 
-res_file <- sprintf("d%d_n%d_misspec_results_reps%d.RData", d, n, reps)
+res_file <- "M2_outputs_reps.RData"
 save(results_reps, elpd_M1, elpd_M2, elpd_diff_val, R2_dropped, tau2_dropped,
-     dropped_col, d, n, reps, file = res_file)
+     dropped_col, d, n, eta, reps, file = res_file)
 cat(sprintf("Saved results to %s\n", res_file))

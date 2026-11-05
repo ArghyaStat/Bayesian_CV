@@ -43,7 +43,7 @@ console logs of the runs that produced the saved real-data and replicated GP out
 
 ### Section 6.1: Subset selection in Bayesian linear regression
 
-`n = 500`, `d = 250`, Gaussian prior on the coefficients. M1 is the true model and M2 drops one
+`n = 500`, `d = 100`, Gaussian prior on the coefficients. M1 is the true model and M2 drops one
 active predictor; the coefficient of the dropped predictor is calibrated so that the exact
 LOO-ELPD gap equals 4 (`sim_data.R`). The exact LOO-ELPD of both models is available in closed
 form and is used as a reference.
@@ -51,7 +51,7 @@ form and is used as a reference.
 | File | Purpose |
 | --- | --- |
 | `*/sim_data.R` | Simulates the data and computes the exact LOO-ELPD |
-| `*/run_true_d250_n500.R`, `*/run_misspec_d250_n500.R` | Sampler runs for M1 and M2 |
+| `*/run_true_d100_n500.R`, `*/run_misspec_d100_n500.R` | Sampler runs for M1 and M2 |
 | `*/elppd_utils.R`, `proposals.R`, `sampler.R` | Mixture IS estimator, mixture target, sampler |
 | `output_analysis/output_analysis.R` | Produces `elpd_mcse_linreg.pdf` |
 

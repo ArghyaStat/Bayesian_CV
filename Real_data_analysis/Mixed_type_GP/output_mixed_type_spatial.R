@@ -116,7 +116,7 @@ if (delta_elpd > 0 && ci_lo > 0) {
   cat("  Conclusion           : No statistically significant difference detected.\n\n")
 }
 
-## S_sep: earliest S after which the model leading at S_max keeps a disjoint 95% interval
+## 95% Monte Carlo intervals
 z_crit <- qnorm(0.975)
 
 m1_lo <- h1_elpd - z_crit * h1_asymp_se
@@ -124,49 +124,9 @@ m1_hi <- h1_elpd + z_crit * h1_asymp_se
 m2_lo <- h2_elpd - z_crit * h2_asymp_se
 m2_hi <- h2_elpd + z_crit * h2_asymp_se
 
-m1_wins <- h1_elpd[last_k] >= h2_elpd[last_k]
-
-compute_S_sep <- function(S, lo1, hi1, lo2, hi2, m1_wins) {
-  is_sep <- if (m1_wins) lo1 > hi2 else lo2 > hi1
-  if (length(is_sep) > 0 && is_sep[length(is_sep)]) {
-    fi <- which(!is_sep)
-    k_sep <- if (length(fi) == 0) 1L else max(fi) + 1L
-    return(S[k_sep])
-  }
-  NA_real_
-}
-
-sep_S <- compute_S_sep(S_vals, m1_lo, m1_hi, m2_lo, m2_hi, m1_wins)
-
-winner_name <- if (m1_wins) "M1 (Joint)" else "M2 (Separate)"
-loser_name  <- if (m1_wins) "M2 (Separate)" else "M1 (Joint)"
-winner_lo   <- if (m1_wins) m1_lo else m2_lo
-loser_hi    <- if (m1_wins) m2_hi else m1_hi
-
-cat("--- Empirical Separation Point Analysis ---\n")
-if (!is.na(sep_S)) {
-  k_sep     <- which(S_vals == sep_S)
-  gap_sep   <- winner_lo[k_sep] - loser_hi[k_sep]
-  sep_k_str <- if (sep_S >= 1000) sprintf(" (%sK)", format(as.integer(sep_S / 1000))) else ""
-  cat(sprintf("  Superior model       : %s\n", winner_name))
-  cat(sprintf("  Empirical separation attained at S_sep = %s iterations%s!\n",
-              format(as.integer(sep_S), big.mark = ","), sep_k_str))
-  cat(sprintf("  At S = %s:\n", format(as.integer(sep_S), big.mark = ",")))
-  cat(sprintf("    %s lower 95%% bound : %.2f\n", winner_name, winner_lo[k_sep]))
-  cat(sprintf("    %s upper 95%% bound : %.2f\n", loser_name, loser_hi[k_sep]))
-  cat(sprintf("    Strict separation gap : +%.2f (ELPD units)\n", gap_sep))
-  cat(sprintf("  Separation holds permanently from S = %s through S_max = %s.\n",
-              format(as.integer(sep_S), big.mark = ","),
-              format(as.integer(S_max), big.mark = ",")))
-  cat("\n")
-} else {
-  cat("  Confidence intervals continue to overlap up to S_max; no complete separation attained.\n\n")
-}
-
 ## Plot styling and axes
 COL_M1     <- "#08519C"
 COL_M2     <- "#D73027"
-COL_SEP    <- "#006837"
 COL_GRID   <- "grey92"
 COL_BOX    <- "grey75"
 
@@ -185,7 +145,7 @@ y_ticks_elpd  <- pretty(c(elpd_all_lo - 0.05 * y_range_elpd, elpd_all_hi + 0.32 
 ylim_elpd     <- range(y_ticks_elpd)
 y_labels_elpd <- format(y_ticks_elpd, big.mark = ",")
 
-## ELJPD tracking with 95% intervals and separation point
+## ELJPD tracking with 95% intervals
 render_elpd_panel <- function(legend_cex = 1.40) {
   plot(NA, xlim = xlim_common, ylim = ylim_elpd,
        xlab = expression("Iterations (" * italic(S) * ")"),
@@ -196,8 +156,6 @@ render_elpd_panel <- function(legend_cex = 1.40) {
   axis(2, at = y_ticks_elpd, labels = y_labels_elpd)
   abline(h = y_ticks_elpd, col = COL_GRID, lty = 1, lwd = 0.8)
   abline(v = s_ticks,      col = COL_GRID, lty = 1, lwd = 0.8)
-
-  if (!is.na(sep_S)) abline(v = sep_S, col = COL_SEP, lty = 4, lwd = 3.2)
 
   arrows(S_vals, m1_lo, S_vals, pmin(m1_hi, ylim_elpd[2]),
          code = 3, angle = 90, length = 0.06,
@@ -211,24 +169,17 @@ render_elpd_panel <- function(legend_cex = 1.40) {
   lines(S_vals,  h2_elpd, col = COL_M2, lwd = 3.5, lty = 1)
   points(S_vals, h2_elpd, col = COL_M2, pch = 1, cex = 1.7, lwd = 2.2)
 
-  sep_txt <- if (!is.na(sep_S)) {
-    bquote("Separation (" * italic(S)[sep] == .(format(as.integer(sep_S), big.mark = ",")) * ")")
-  } else {
-    expression("No separation")
-  }
-
   legend("topright", inset = c(0.025, 0.025),
          legend = c(
            expression(italic(M)[1] ~ "(Joint Covariance GP)"),
-           expression(italic(M)[2] ~ "(Separate Covariance GP)"),
-           sep_txt
+           expression(italic(M)[2] ~ "(Separate Covariance GP)")
          ),
-         col    = c(COL_M1, COL_M2, COL_SEP),
-         pch    = c(19, 1, NA),
-         lty    = c(1, 1, 4),
-         lwd    = c(3.2, 3.2, 3.2),
-         pt.cex = c(1.7, 1.7, NA),
-         pt.lwd = c(NA, 2.2, NA),
+         col    = c(COL_M1, COL_M2),
+         pch    = c(19, 1),
+         lty    = c(1, 1),
+         lwd    = c(3.2, 3.2),
+         pt.cex = c(1.7, 1.7),
+         pt.lwd = c(NA, 2.2),
          bty    = "o", bg = adjustcolor("white", 0.94), box.col = COL_BOX,
          cex    = legend_cex, y.intersp = 1.15)
   box(lwd = 1.8)
