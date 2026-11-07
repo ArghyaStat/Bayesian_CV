@@ -4,6 +4,7 @@
 
 rm(list = ls())
 gc()
+set.seed(4106)
 
 library(MASS)
 library(mcmcse)
