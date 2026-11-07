@@ -107,8 +107,8 @@ if (sys.nframe() == 0) {
     setwd(this.path::here())
   }
 
-  n <- 500
-  d <- 100
+  n <- 100
+  d <- 50
   eta <- 0.9
   sigma2 <- 1
   tau2 <- 100
@@ -118,7 +118,7 @@ if (sys.nframe() == 0) {
   sim_dat <- sim_data(n = n, d = d, s = s, eta = eta, sigma2 = sigma2,
                       target_delta = target_delta, tau2 = tau2)
 
-  save(sim_dat, file = sprintf("sim_data_d%d.RData", d))
-  cat(sprintf("Generated sim_data_d%d.RData (delta_exact = %.4f)\n",
+  save(sim_dat, file = sprintf("sim_data_n%d_d%d.RData", n, d))
+  cat(sprintf("Generated sim_data_n%d_d%d.RData (delta_exact = %.4f)\n", n,
               d, sim_dat$delta_exact))
 }

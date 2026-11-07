@@ -1,0 +1,18 @@
+\begin{table}[H]
+\centering
+\caption{Operational termination metrics and empirical coverage of nominal 95\% asymptotic confidence intervals across $R = 100$ independent MCMC replications. The analytical reference values are $\mathrm{ELPD}_{\mc{D}}(\mc{M}_1) = -188.92$ and $\mathrm{ELPD}_{\mc{D}}(\mc{M}_2) = -192.92$, giving $\Delta\mathrm{ELPD}_{\mc{D}} = 4$.} 
+\label{tab:reps_summary}
+\begingroup\small\setlength{\tabcolsep}{5.5pt}
+\begin{tabular}{lcccc}
+  \toprule
+Model & Precision $\varepsilon$ & Median $\Sterm$ [IQR] & $\text{half-len}(\bar{C_\alpha})$ & Coverage \\ 
+  \midrule
+\multirow{2}{*}{$\mc{M}_1$} & $0.050$ & $35{,}000$ [$35\text{K}, 35\text{K}$] & $0.718$ & $89.0\%$ \\ 
+   & $0.025$ & $150{,}000$ [$150\text{K}, 155\text{K}$] & $0.369$ & $86.0\%$ \\ 
+   \midrule
+\multirow{2}{*}{$\mc{M}_2$} & $0.050$ & $35{,}000$ [$30\text{K}, 35\text{K}$] & $0.782$ & $83.0\%$ \\ 
+   & $0.025$ & $135{,}000$ [$135\text{K}, 140\text{K}$] & $0.403$ & $90.0\%$ \\ 
+   \bottomrule
+\end{tabular}
+\endgroup
+\end{table}

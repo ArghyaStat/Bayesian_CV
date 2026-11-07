@@ -1,6 +1,5 @@
 # Replicated study: Misspecified model (M2)
-# Configuration: d = 100, n = 500, reps = 100
-# Sampler: Mixture IS via HMC; termination (nom_width) is applied in output_analysis.R
+# Configuration: d = 50, n = 100, reps = 100
 
 rm(list = ls())
 gc()
@@ -20,15 +19,15 @@ source("sampler.R")
 source("sim_data.R")
 
 # Simulation parameters
-d      <- 100
-n      <- 500
+d      <- 50
+n      <- 100
 eta    <- 0.9
 sigma2 <- 1
 tau2   <- 100
-reps   <- 100
+reps   <- 500
 
 S_star <- 5e3
-S_max  <- 2.5e5
+S_max  <- 2e5
 S_step <- 5e3
 S_vals <- seq(S_star, S_max, by = S_step)
 
@@ -36,8 +35,8 @@ K     <- n
 kappa <- 1:n
 
 # HMC parameters
-eps_mix <- 0.65
-L_steps <- 10
+eps_mix <- 0.7
+L_steps <- 5
 
 # Vectorised log-likelihood matrix: S x n
 compute_log_lik_mat <- function(samples, X, y, sigma2) {
@@ -67,7 +66,7 @@ grad_log_prior <- function(theta) {
 }
 
 
-data_file <- sprintf("sim_data_d%d.RData", d)
+data_file <- sprintf("sim_data_n%d_d%d.RData", n, d)
 if (!file.exists(data_file)) {
   stop(sprintf("Data file %s not found. Please run sim_data.R first.", data_file))
 }
@@ -101,6 +100,8 @@ cl <- tryCatch({
 
 
 results_reps <- foreach(r = 1:reps, .packages = c("MASS", "mcmcse")) %dopar% {
+
+  set.seed(r + 4091)
 
   fit_lm    <- lm(y ~ X_curr - 1)
   beta_init <- as.vector(coef(fit_lm))
