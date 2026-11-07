@@ -25,7 +25,7 @@ sigma2 <- 1
 tau2   <- 100
 
 S_star <- 5e3
-S_max  <- 3e5
+S_max  <- 2e5
 S_step <- 5e3
 S_vals <- seq(S_star, S_max, by = S_step)
 
