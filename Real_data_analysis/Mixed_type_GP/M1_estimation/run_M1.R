@@ -23,7 +23,7 @@ k.folds    <- 10
 m          <- 20
 t.index    <- 140
 S_star     <- 4e4
-S_max      <- 7e4
+S_max      <- 12e4
 S_step     <- 1e3
 S_vals     <- seq(S_star, S_max, by = S_step)
 tuning.phi <- 1e-2
