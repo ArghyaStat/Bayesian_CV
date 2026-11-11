@@ -66,12 +66,14 @@ elppd_max <- max(c(h1$elppd_hat, h2$elppd_hat, m1_hi, m2_hi), na.rm = TRUE)
 y_range   <- elppd_max - elppd_min
 if (y_range < 1e-5) y_range <- 1.0
 
-y_ticks_elppd <- pretty(c(elppd_min - 0.08 * y_range, elppd_max + 0.25 * y_range), n = 7)
-ylim_elppd    <- range(y_ticks_elppd)
+## y-limits hug the min / max of the plotted intervals
+ylim_elppd    <- c(elppd_min, elppd_max) + c(-1, 1) * 0.04 * y_range
+y_ticks_elppd <- pretty(ylim_elppd, n = 6)
+y_ticks_elppd <- y_ticks_elppd[y_ticks_elppd >= ylim_elppd[1] & y_ticks_elppd <= ylim_elppd[2]]
 
 set_par <- function() {
   par(
-    mar      = c(6.5, 8.5, 2.5, 2.0),
+    mar      = c(6.5, 8.5, 1.2, 1.5),
     oma      = c(0.5, 0.5, 0.5, 0.5),
     mgp      = c(5.2, 1.5, 0),
     cex.lab  = 2.6,
@@ -81,7 +83,7 @@ set_par <- function() {
 }
 
 draw_frame <- function(ylim, y_ticks, y_labels, ylab) {
-  plot(NA, xlim = xlim_common, ylim = ylim,
+  plot(NA, xlim = xlim_common, ylim = ylim, yaxs = "i",
        xlab = expression("Iterations (" * italic(S) * ")"),
        ylab = ylab, main = "", xaxt = "n", yaxt = "n")
   axis(1, at = s_ticks, labels = s_labels, gap.axis = 0)
@@ -90,13 +92,27 @@ draw_frame <- function(ylim, y_ticks, y_labels, ylab) {
   abline(v = s_ticks, col = "grey92", lty = 1, lwd = 0.8)
 }
 
+## Legend inside the panel, in whichever position covers the fewest points / interval bars
+## (no head-room is added to the y-axis for it)
+legend_inside <- function(x_list, lo_list, hi_list, ...) {
+  positions <- c("topright", "bottomright", "topleft", "bottomleft",
+                 "top", "bottom", "right", "left", "center")
+  covered <- sapply(positions, function(pos) {
+    r <- legend(pos, inset = c(0.015, 0.025), ..., plot = FALSE)$rect
+    sum(mapply(function(x, lo, hi) {
+      sum(x >= r$left & x <= r$left + r$w & hi >= r$top - r$h & lo <= r$top, na.rm = TRUE)
+    }, x_list, lo_list, hi_list))
+  })
+  legend(positions[which.min(covered)], inset = c(0.015, 0.025), ...)
+}
+
 render_elppd_panel <- function() {
   draw_frame(ylim_elppd, y_ticks_elppd, y_ticks_elppd,
              expression(widehat(ELPPD)(italic(S))))
 
-  arrows(h1$S, m1_lo, h1$S, pmin(m1_hi, ylim_elppd[2]), code = 3, angle = 90, length = 0.06,
+  arrows(h1$S, m1_lo, h1$S, m1_hi, code = 3, angle = 90, length = 0.06,
          col = adjustcolor(COL_M1, 0.50), lwd = 2.4)
-  arrows(h2$S, m2_lo, h2$S, pmin(m2_hi, ylim_elppd[2]), code = 3, angle = 90, length = 0.06,
+  arrows(h2$S, m2_lo, h2$S, m2_hi, code = 3, angle = 90, length = 0.06,
          col = adjustcolor(COL_M2, 0.55), lwd = 2.4)
 
   lines(h1$S,  h1$elppd_hat, col = COL_M1, lwd = 3.2)
@@ -104,7 +120,7 @@ render_elppd_panel <- function() {
   lines(h2$S,  h2$elppd_hat, col = COL_M2, lwd = 3.2)
   points(h2$S, h2$elppd_hat, col = COL_M2, pch = 1, cex = 1.6, lwd = 2.0)
 
-  legend("topright", inset = c(0.025, 0.025),
+  legend_inside(list(h1$S, h2$S), list(m1_lo, m2_lo), list(m1_hi, m2_hi),
          legend = c(
            as.expression(bquote(italic(M)[1] ~ "(Logistic link)")),
            as.expression(bquote(italic(M)[2] ~ "(Cloglog link)"))
@@ -116,12 +132,12 @@ render_elppd_panel <- function() {
          pt.cex = c(1.6, 1.6),
          pt.lwd = c(NA, 2.0),
          bty = "o", bg = adjustcolor("white", 0.94), box.col = "grey75",
-         cex = 1.35, y.intersp = 1.15)
+         cex = 1.45, y.intersp = 1.15)
   box(lwd = 1.8)
 }
 
 ## Export
-pdf("elpd_mcse_arrhythmia.pdf", width = 10, height = 9.5, useDingbats = FALSE)
+pdf("elpd_mcse_arrhythmia.pdf", width = 10, height = 6.25, useDingbats = FALSE)   # 8:5
 set_par()
 render_elppd_panel()
 invisible(dev.off())
