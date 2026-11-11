@@ -115,6 +115,18 @@ if (!is.null(S_window)) {
 }
 cat(sprintf("Metropolis acceptance rate (phi): M1 = %.4f, M2 = %.4f\n\n", acc_m1, acc_m2))
 
+## Degeneracy check saved by the run scripts (absent in outputs produced before it was added)
+for (mdl in c("M1", "M2")) {
+  dg <- get_var(if (mdl == "M1") env_m1 else env_m2, "diagnostics", NULL)
+  if (is.null(dg)) {
+    cat(sprintf("%s: no mixture diagnostics saved with this output.\n", mdl))
+  } else if (!isTRUE(dg$ok)) {
+    warning(sprintf("%s: DEGENERATE MIXTURE ESTIMATE: %s. ELJPD and its MCSE are not reliable.",
+                    mdl, paste(dg$problems, collapse = "; ")), call. = FALSE, immediate. = TRUE)
+  }
+}
+cat("\n")
+
 ## Summary at S_max
 last_k1 <- length(S1_vals)
 last_k2 <- length(S2_vals)
