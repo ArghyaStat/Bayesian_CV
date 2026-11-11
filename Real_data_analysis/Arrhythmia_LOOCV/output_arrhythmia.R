@@ -66,10 +66,8 @@ elppd_max <- max(c(h1$elppd_hat, h2$elppd_hat, m1_hi, m2_hi), na.rm = TRUE)
 y_range   <- elppd_max - elppd_min
 if (y_range < 1e-5) y_range <- 1.0
 
-## y-limits hug the min / max of the plotted intervals
-ylim_elppd    <- c(elppd_min, elppd_max) + c(-1, 1) * 0.04 * y_range
-y_ticks_elppd <- pretty(ylim_elppd, n = 6)
-y_ticks_elppd <- y_ticks_elppd[y_ticks_elppd >= ylim_elppd[1] & y_ticks_elppd <= ylim_elppd[2]]
+## y-limits hug the min / max of the plotted intervals (extended only if the legend needs it)
+ylim_tight <- c(elppd_min, elppd_max) + c(-1, 1) * 0.04 * y_range
 
 set_par <- function() {
   par(
@@ -92,21 +90,47 @@ draw_frame <- function(ylim, y_ticks, y_labels, ylab) {
   abline(v = s_ticks, col = "grey92", lty = 1, lwd = 0.8)
 }
 
-## Legend inside the panel, in whichever position covers the fewest points / interval bars
-## (no head-room is added to the y-axis for it)
-legend_inside <- function(x_list, lo_list, hi_list, ...) {
-  positions <- c("topright", "bottomright", "topleft", "bottomleft",
-                 "top", "bottom", "right", "left", "center")
-  covered <- sapply(positions, function(pos) {
-    r <- legend(pos, inset = c(0.015, 0.025), ..., plot = FALSE)$rect
-    sum(mapply(function(x, lo, hi) {
-      sum(x >= r$left & x <= r$left + r$w & hi >= r$top - r$h & lo <= r$top, na.rm = TRUE)
-    }, x_list, lo_list, hi_list))
-  })
-  legend(positions[which.min(covered)], inset = c(0.015, 0.025), ...)
+## The legend goes in the top-right or bottom-right corner of the panel. Starting from
+## y-limits that hug the data, the corner already clear of the curves is used; if the
+## curves reach into both, the y-axis is extended on one side by just enough for the
+## legend to sit clear of them. Returns the corner and the final y-limits.
+LEG_INSET <- c(0.015, 0.025)
+fit_legend_corner <- function(xlim, ylim, x_list, lo_list, hi_list, leg_args, gap = 0.03) {
+  plot.new()
+  plot.window(xlim = xlim, ylim = ylim, yaxs = "i")
+  usr <- par("usr")
+  r   <- do.call(legend, c(list("topright", inset = LEG_INSET, plot = FALSE), leg_args))$rect
+  fh  <- (usr[4] - (r$top - r$h)) / (usr[4] - usr[3]) + gap   # share of panel height needed
+  under <- unlist(x_list) >= r$left - 0.02 * (usr[2] - usr[1]) # checkpoints below / above the box
+  d_hi  <- max(unlist(hi_list)[under], na.rm = TRUE)
+  d_lo  <- min(unlist(lo_list)[under], na.rm = TRUE)
+  top_ext <- max(0, (d_hi - fh * ylim[1]) / (1 - fh) - ylim[2])
+  bot_ext <- max(0, ylim[1] - (d_lo - fh * ylim[2]) / (1 - fh))
+  par(new = TRUE)                                              # the real plot reuses this page
+  if (top_ext <= bot_ext) list(pos = "topright",    ylim = c(ylim[1], ylim[2] + top_ext))
+  else                    list(pos = "bottomright", ylim = c(ylim[1] - bot_ext, ylim[2]))
 }
 
 render_elppd_panel <- function() {
+  leg_args <- list(
+         legend = c(
+           as.expression(bquote(italic(M)[1] ~ "(Logistic link)")),
+           as.expression(bquote(italic(M)[2] ~ "(Cloglog link)"))
+         ),
+         col = c(COL_M1, COL_M2),
+         pch = c(19, 1),
+         lty = c(1, 1),
+         lwd = c(3.0, 3.0),
+         pt.cex = c(1.6, 1.6),
+         pt.lwd = c(NA, 2.0),
+         bty = "o", bg = adjustcolor("white", 0.94), box.col = "grey75",
+         cex = 1.45, y.intersp = 1.15)
+  fit <- fit_legend_corner(xlim_common, ylim_tight, list(h1$S, h2$S),
+                           list(m1_lo, m2_lo), list(m1_hi, m2_hi), leg_args)
+  ylim_elppd    <- fit$ylim
+  y_ticks_elppd <- pretty(ylim_elppd, n = 6)
+  y_ticks_elppd <- y_ticks_elppd[y_ticks_elppd >= ylim_elppd[1] & y_ticks_elppd <= ylim_elppd[2]]
+
   draw_frame(ylim_elppd, y_ticks_elppd, y_ticks_elppd,
              expression(widehat(ELPPD)(italic(S))))
 
@@ -120,24 +144,14 @@ render_elppd_panel <- function() {
   lines(h2$S,  h2$elppd_hat, col = COL_M2, lwd = 3.2)
   points(h2$S, h2$elppd_hat, col = COL_M2, pch = 1, cex = 1.6, lwd = 2.0)
 
-  legend_inside(list(h1$S, h2$S), list(m1_lo, m2_lo), list(m1_hi, m2_hi),
-         legend = c(
-           as.expression(bquote(italic(M)[1] ~ "(Logistic link)")),
-           as.expression(bquote(italic(M)[2] ~ "(Cloglog link)"))
-         ),
-         col = c(COL_M1, COL_M2),
-         pch = c(19, 1),
-         lty = c(1, 1),
-         lwd = c(3.0, 3.0),
-         pt.cex = c(1.6, 1.6),
-         pt.lwd = c(NA, 2.0),
-         bty = "o", bg = adjustcolor("white", 0.94), box.col = "grey75",
-         cex = 1.45, y.intersp = 1.15)
+  do.call(legend, c(list(fit$pos, inset = LEG_INSET), leg_args))
   box(lwd = 1.8)
 }
 
-## Export
-pdf("elpd_mcse_arrhythmia.pdf", width = 10, height = 6.25, useDingbats = FALSE)   # 8:5
+## Export (same size as the spatial figure, output_mixed_type_spatial.R)
+FIG_WIDTH  <- 10
+FIG_HEIGHT <- 7.5
+pdf("elpd_mcse_arrhythmia.pdf", width = FIG_WIDTH, height = FIG_HEIGHT, useDingbats = FALSE)
 set_par()
 render_elppd_panel()
 invisible(dev.off())

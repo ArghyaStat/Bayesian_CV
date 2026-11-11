@@ -183,28 +183,52 @@ elpd_all_hi  <- max(c(m1_hi, m2_hi), na.rm = TRUE)
 y_range_elpd <- elpd_all_hi - elpd_all_lo
 if (y_range_elpd < 1e-4) y_range_elpd <- 10.0
 
-## y-limits hug the min / max of the plotted intervals
-ylim_elpd     <- c(elpd_all_lo, elpd_all_hi) + c(-1, 1) * 0.04 * y_range_elpd
-y_ticks_elpd  <- pretty(ylim_elpd, n = 6)
-y_ticks_elpd  <- y_ticks_elpd[y_ticks_elpd >= ylim_elpd[1] & y_ticks_elpd <= ylim_elpd[2]]
-y_labels_elpd <- format(y_ticks_elpd, big.mark = ",")
+## y-limits hug the min / max of the plotted intervals (extended only if the legend needs it)
+ylim_tight <- c(elpd_all_lo, elpd_all_hi) + c(-1, 1) * 0.04 * y_range_elpd
 
-## Legend inside the panel, in whichever position covers the fewest points / interval bars
-## (no head-room is added to the y-axis for it)
-legend_inside <- function(x_list, lo_list, hi_list, ...) {
-  positions <- c("topright", "bottomright", "topleft", "bottomleft",
-                 "top", "bottom", "right", "left", "center")
-  covered <- sapply(positions, function(pos) {
-    r <- legend(pos, inset = c(0.015, 0.025), ..., plot = FALSE)$rect
-    sum(mapply(function(x, lo, hi) {
-      sum(x >= r$left & x <= r$left + r$w & hi >= r$top - r$h & lo <= r$top, na.rm = TRUE)
-    }, x_list, lo_list, hi_list))
-  })
-  legend(positions[which.min(covered)], inset = c(0.015, 0.025), ...)
+## The legend goes in the top-right or bottom-right corner of the panel. Starting from
+## y-limits that hug the data, the corner already clear of the curves is used; if the
+## curves reach into both, the y-axis is extended on one side by just enough for the
+## legend to sit clear of them. Returns the corner and the final y-limits.
+LEG_INSET <- c(0.015, 0.025)
+fit_legend_corner <- function(xlim, ylim, x_list, lo_list, hi_list, leg_args, gap = 0.03) {
+  plot.new()
+  plot.window(xlim = xlim, ylim = ylim, yaxs = "i")
+  usr <- par("usr")
+  r   <- do.call(legend, c(list("topright", inset = LEG_INSET, plot = FALSE), leg_args))$rect
+  fh  <- (usr[4] - (r$top - r$h)) / (usr[4] - usr[3]) + gap   # share of panel height needed
+  under <- unlist(x_list) >= r$left - 0.02 * (usr[2] - usr[1]) # checkpoints below / above the box
+  d_hi  <- max(unlist(hi_list)[under], na.rm = TRUE)
+  d_lo  <- min(unlist(lo_list)[under], na.rm = TRUE)
+  top_ext <- max(0, (d_hi - fh * ylim[1]) / (1 - fh) - ylim[2])
+  bot_ext <- max(0, ylim[1] - (d_lo - fh * ylim[2]) / (1 - fh))
+  par(new = TRUE)                                              # the real plot reuses this page
+  if (top_ext <= bot_ext) list(pos = "topright",    ylim = c(ylim[1], ylim[2] + top_ext))
+  else                    list(pos = "bottomright", ylim = c(ylim[1] - bot_ext, ylim[2]))
 }
 
 ## ELJPD tracking with 95% intervals
 render_elpd_panel <- function(legend_cex = 1.40) {
+  leg_args <- list(
+         legend = c(
+           expression(italic(M)[1] ~ "(Joint Covariance GP)"),
+           expression(italic(M)[2] ~ "(Separate Covariance GP)")
+         ),
+         col    = c(COL_M1, COL_M2),
+         pch    = c(19, 1),
+         lty    = c(1, 1),
+         lwd    = c(3.2, 3.2),
+         pt.cex = c(1.7, 1.7),
+         pt.lwd = c(NA, 2.2),
+         bty    = "o", bg = adjustcolor("white", 0.94), box.col = COL_BOX,
+         cex    = legend_cex, y.intersp = 1.15)
+  fit <- fit_legend_corner(xlim_common, ylim_tight, list(S1_vals, S2_vals),
+                           list(m1_lo, m2_lo), list(m1_hi, m2_hi), leg_args)
+  ylim_elpd     <- fit$ylim
+  y_ticks_elpd  <- pretty(ylim_elpd, n = 6)
+  y_ticks_elpd  <- y_ticks_elpd[y_ticks_elpd >= ylim_elpd[1] & y_ticks_elpd <= ylim_elpd[2]]
+  y_labels_elpd <- format(y_ticks_elpd, big.mark = ",")
+
   plot(NA, xlim = xlim_common, ylim = ylim_elpd, yaxs = "i",
        xlab = expression("Iterations (" * italic(S) * ")"),
        ylab = "", main = "", xaxt = "n", yaxt = "n")
@@ -227,25 +251,15 @@ render_elpd_panel <- function(legend_cex = 1.40) {
   lines(S2_vals,  h2_elpd, col = COL_M2, lwd = 3.5, lty = 1)
   points(S2_vals, h2_elpd, col = COL_M2, pch = 1, cex = 1.7, lwd = 2.2)
 
-  legend_inside(list(S1_vals, S2_vals), list(m1_lo, m2_lo), list(m1_hi, m2_hi),
-         legend = c(
-           expression(italic(M)[1] ~ "(Joint Covariance GP)"),
-           expression(italic(M)[2] ~ "(Separate Covariance GP)")
-         ),
-         col    = c(COL_M1, COL_M2),
-         pch    = c(19, 1),
-         lty    = c(1, 1),
-         lwd    = c(3.2, 3.2),
-         pt.cex = c(1.7, 1.7),
-         pt.lwd = c(NA, 2.2),
-         bty    = "o", bg = adjustcolor("white", 0.94), box.col = COL_BOX,
-         cex    = legend_cex, y.intersp = 1.15)
+  do.call(legend, c(list(fit$pos, inset = LEG_INSET), leg_args))
   box(lwd = 1.8)
 }
 
-## Export
+## Export (same size as the arrhythmia figure, output_arrhythmia.R)
+FIG_WIDTH  <- 10
+FIG_HEIGHT <- 7.5
 fig_file <- paste0("elpd_mcse_spatial", run_tag, ".pdf")
-pdf(fig_file, width = 10, height = 6.25, useDingbats = FALSE)   # 8:5
+pdf(fig_file, width = FIG_WIDTH, height = FIG_HEIGHT, useDingbats = FALSE)
 par(
   mar      = c(6.5, 11, 1.2, 1.5),
   oma      = c(0.5, 0.5, 0.5, 0.5),
