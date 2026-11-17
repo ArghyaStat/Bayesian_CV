@@ -83,3 +83,58 @@ eljpd.details <- function(num, den, log_c = 0, samples = NULL) {
     xi            = xi
   )
 }
+
+# Degeneracy check for the mixture sampler and its importance weights.
+# The estimator is only meaningful if the fold indicator U moves across all K folds and no
+# single draw carries most of the weight in the numerator or in any fold's denominator.
+# Flags: a fold never visited, or a weight vector whose largest single draw exceeds max_share.
+mixture_diagnostics <- function(fold_loglik, folds = NULL, max_share = 0.10) {
+  tup <- tuple_function(fold_loglik)
+  S <- nrow(tup$denominator)
+  K <- ncol(tup$denominator)
+  kish  <- function(w) sum(w)^2 / sum(w^2)
+  share <- function(w) max(w) / sum(w)
+
+  out <- list(
+    S           = S,
+    fold_visits = if (is.null(folds)) rep(NA_integer_, K) else tabulate(folds, nbins = K),
+    num_ess     = kish(tup$numerator[, 1]),
+    num_share   = share(tup$numerator[, 1]),
+    den_ess     = apply(tup$denominator, 2, kish),
+    den_share   = apply(tup$denominator, 2, share)
+  )
+  problems <- character()
+  if (!is.null(folds) && any(out$fold_visits == 0)) {
+    problems <- c(problems, sprintf("fold indicator visited only %d of %d folds",
+                                    sum(out$fold_visits > 0), K))
+  }
+  if (out$num_share > max_share) {
+    problems <- c(problems, sprintf("one draw carries %.0f%% of the numerator weight",
+                                    100 * out$num_share))
+  }
+  if (any(out$den_share > max_share)) {
+    problems <- c(problems, sprintf("one draw carries more than %.0f%% of the denominator weight in %d of %d folds",
+                                    100 * max_share, sum(out$den_share > max_share), K))
+  }
+  out$problems <- problems
+  out$ok <- length(problems) == 0
+  out
+}
+
+print_mixture_diagnostics <- function(d) {
+  cat("---- Mixture / importance-weight diagnostics ----\n")
+  cat("Fold visits            :", d$fold_visits, "\n")
+  cat(sprintf("Numerator   weight ESS : %.1f of %d draws (largest single-draw share %.3f)\n",
+              d$num_ess, d$S, d$num_share))
+  cat("Denominator weight ESS :", round(d$den_ess, 1), "\n")
+  cat("Denominator max share  :", round(d$den_share, 3), "\n")
+  if (d$ok) {
+    cat("No degeneracy detected.\n")
+  } else {
+    msg <- paste0("DEGENERATE MIXTURE ESTIMATE: ", paste(d$problems, collapse = "; "),
+                  ". ELJPD and its MCSE are not reliable.")
+    cat(msg, "\n")
+    warning(msg, call. = FALSE, immediate. = TRUE)
+  }
+  invisible(d)
+}

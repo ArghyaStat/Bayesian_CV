@@ -65,8 +65,17 @@ elppd.details <- function(num, den, S = NULL, b = NULL,
     stop("Need at least two MCMC draws.")
   }
 
-  v_num <- 1/mu_num
-  v_den <- -1/mu_den
+  se2_num <- numeric(n)
+  se2_den <- numeric(n)
+
+  for (i in seq_len(n)) {
+    se2_num[i] <- mcmcse::mcse(num[, i])$se^2
+    se2_den[i] <- mcmcse::mcse(den[, i])$se^2
+  }
+
+  v_num <- mu_num / (mu_num^2 + se2_num)
+  v_den <- - mu_den / (mu_den^2 + se2_den)
+
   # ELPPD point estimate
   mu        <- mu_num / mu_den
   elppd_hat <- sum(log(mu))
@@ -77,7 +86,7 @@ elppd.details <- function(num, den, S = NULL, b = NULL,
 
   # Batch means Monte Carlo error
   xi <- as.vector(num %*% v_num + den %*% v_den)
-  
+
   asymp_se <- (mcmcse::mcse(xi, size = NULL, r = 3,
                             method = "bm", warn = FALSE)$se^2)
   post_se  <- (mcmcse::mcse(xi, size = 1, r = 1,

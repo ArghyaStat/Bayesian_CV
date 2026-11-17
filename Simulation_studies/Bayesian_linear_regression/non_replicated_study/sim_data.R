@@ -1,4 +1,4 @@
-# Configuration: d = 100, n = 500
+# Configuration: d = 50, n = 100
 
 # Exact Bayesian LOO-ELPD
 loo_elpd <- function(X, y, sigma2, tau2) {
@@ -28,7 +28,7 @@ loo_elpd_diff <- function(X, y, sigma2, tau2, dropped_col) {
 
 # Simulate linear regression data; the coefficient of dropped_col is set so the exact ELPD gap equals target_delta
 sim_data <- function(n, d, s, eta, sigma2,
-                     target_delta = 4, dropped_col = d,
+                     target_delta = 2, dropped_col = d,
                      tau2 = 100, beta_range = c(0, 10),
                      seed = NULL) {
 
@@ -107,18 +107,18 @@ if (sys.nframe() == 0) {
     setwd(this.path::here())
   }
 
-  n <- 500
-  d <- 100
+  n <- 100
+  d <- 50
   eta <- 0.9
   sigma2 <- 1
   tau2 <- 100
   s <- min(d, max(1, floor(n / log(d))))
-  target_delta <- 4.0
+  target_delta <- 2
 
   sim_dat <- sim_data(n = n, d = d, s = s, eta = eta, sigma2 = sigma2,
                       target_delta = target_delta, tau2 = tau2)
 
-  save(sim_dat, file = sprintf("sim_data_d%d.RData", d))
-  cat(sprintf("Generated sim_data_d%d.RData (delta_exact = %.4f)\n",
+  save(sim_dat, file = sprintf("sim_data_n%d_d%d.RData", n, d))
+  cat(sprintf("Generated sim_data_n%d_d%d.RData (delta_exact = %.4f)\n", n,
               d, sim_dat$delta_exact))
 }

@@ -26,7 +26,7 @@ m          <- 20
 t.index    <- 140
 S_star     <- 4e4
 S_max      <- 7e4
-S_step     <- 1e3
+S_step     <- 12e4
 S_vals     <- seq(S_star, S_max, by = S_step)
 tuning.phi <- 1e-2
 
@@ -107,6 +107,7 @@ fold_ll   <- fit_main$fold_loglik
 cat(sprintf("Gibbs sampling complete in %.2f mins. Acceptance rate: %.4f\n",
             t_elapsed, acc_phi))
 cat(sprintf("Distinct folds visited: %d of %d\n", length(unique(fit_main$folds)), k.folds))
+folds_U   <- fit_main$folds
 rm(fit_main)
 invisible(gc())
 
@@ -156,11 +157,18 @@ print(data.frame(
   minESS_xi = round(history$minESS_xi, 1)
 ))
 
+# ---- Degeneracy check ---------------------------------------------------------
+
+diagnostics <- print_mixture_diagnostics(
+  mixture_diagnostics(fold_ll[seq_len(S_max), , drop = FALSE], folds_U[seq_len(S_max)])
+)
+
 # ---- Save --------------------------------------------------------------------
 
 acc.phi <- acc_phi
 save(
   history,
+  diagnostics,
   acc.phi,
   k.folds,
   m,

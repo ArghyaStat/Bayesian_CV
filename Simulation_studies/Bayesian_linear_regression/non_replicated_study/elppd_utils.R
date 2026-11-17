@@ -89,7 +89,7 @@ elppd.details <- function(num, den, S = NULL, b = NULL,
 
   asymp_se <- (mcmcse::mcse(xi, size = NULL, r = 3,
                             method = "bm", warn = FALSE)$se^2)
-  post_se  <- (mcmcse::mcse(xi, size = 1, r = 3,
+  post_se  <- (mcmcse::mcse(xi, size = 1, r = 1,
                             method = "bm", warn = FALSE)$se^2)
 
   ess <- if (!is.na(asymp_se) && asymp_se > 0) {
